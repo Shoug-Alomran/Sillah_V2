@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import Image from "next/image";
-import AuthInput from "@/components/auth/AuthInput";
-import SubmitButton from "@/components/auth/SubmitButton";
 
-export default function UnifiedSignupPage() {
-  const [role, setRole] = useState("citizen"); // patient default
+export default function SignupPage() {
+  const [role, setRole] = useState("citizen");
   const [doctors, setDoctors] = useState([]);
   const [loadingDoctors, setLoadingDoctors] = useState(true);
 
@@ -22,7 +21,6 @@ export default function UnifiedSignupPage() {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  // Fetch doctors dynamically
   useEffect(() => {
     async function fetchDoctors() {
       try {
@@ -66,219 +64,169 @@ export default function UnifiedSignupPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100%",
-        background: "linear-gradient(to bottom right, #e0f7fa, #d1c4e9)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: "20px",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "480px",
-          width: "100%",
-          background: "#fff",
-          borderRadius: "16px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-          padding: "30px",
-          fontFamily: "Segoe UI, sans-serif",
-        }}
-      >
-        {/* Heart Logo */}
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <Image
-            src="/heart.png" // your original logo, unchanged
-            alt="Sillah Logo"
-            width={64}
-            height={64}
-            style={{ borderRadius: "12px" }}
-          />
-        </div>
+    <div className="auth-page">
+      <div className="auth-container">
+        <div className="auth-card">
 
-        <h1
-          style={{
-            fontSize: "24px",
-            marginBottom: "4px",
-            color: "#0a4d68",
-            textAlign: "center",
-          }}
-        >
-          Join Sillah (صلة)
-        </h1>
-        <p style={{ marginBottom: "20px", color: "#666", textAlign: "center" }}>
-          Create your account
-        </p>
-
-        {/* FORM */}
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-        >
-          {/* Role Toggle */}
-          <label style={{ fontSize: "14px", color: "#444" }}>I am a</label>
-
-          <div style={{ display: "flex", gap: "12px" }}>
-            {/* Patient Button */}
-            <button
-              type="button"
-              onClick={() => setRole("citizen")}
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: "10px",
-                border:
-                  role === "citizen" ? "2px solid #0a4d68" : "1px solid #ccc",
-                background: role === "citizen" ? "#e0f7fa" : "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                cursor: "pointer",
-              }}
-            >
-              {/* Patient Icon */}
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="#0a4d68"
-              >
-                <circle cx="12" cy="7" r="5" />
-                <path d="M12 14c-5 0-9 3-9 6v2h18v-2c0-3-4-6-9-6z" />
-              </svg>
-              Patient
-            </button>
-
-            {/* Doctor Button */}
-            <button
-              type="button"
-              onClick={() => setRole("provider")}
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: "10px",
-                border:
-                  role === "provider" ? "2px solid #0a4d68" : "1px solid #ccc",
-                background: role === "provider" ? "#e0f7fa" : "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                cursor: "pointer",
-              }}
-            >
-              {/* Stethoscope Icon */}
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="#0a4d68"
-                stroke="#0a4d68"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 3v6a6 6 0 0 0 12 0V3" />
-                <circle cx="18" cy="20" r="2" />
-                <path d="M18 18v-2a4 4 0 0 0-4-4H8" />
-              </svg>
-              Doctor
-            </button>
+          {/* Header */}
+          <div className="auth-header">
+            <div className="brand-icon-large">
+              <div className="brand-icon-large">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="white"
+                  className="brand-heart-large"
+                >
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+              </div>
+            </div>
+            <h1 className="auth-title">Join Sillah (صلة)</h1>
+            <p className="auth-subtitle">Create your account</p>
           </div>
 
-          {/* Full Name */}
-          <AuthInput
-            label="Full Name"
-            name="full_name"
-            placeholder="Enter your full name"
-            value={form.full_name}
-            onChange={handleChange}
-          />
+          {/* Form */}
+          <form className="auth-form" onSubmit={handleSubmit}>
 
-          {/* Email */}
-          <AuthInput
-            label="Email Address"
-            name="email"
-            placeholder="your.email@example.com"
-            value={form.email}
-            onChange={handleChange}
-          />
+            {/* User Type */}
+            <div className="user-type-selector">
+              <button
+                type="button"
+                className={`user-type-btn ${role === "citizen" ? "active" : ""}`}
+                onClick={() => setRole("citizen")}
+              >
+                <span className="user-type-icon">👤</span>
+                Patient
+              </button>
 
-          {/* Phone */}
-          <AuthInput
-            label="Phone Number (Optional)"
-            name="phone"
-            placeholder="+966 50 123 4567"
-            value={form.phone}
-            onChange={handleChange}
-          />
-
-          {/* Doctor Select (only for patients) */}
-          {role === "citizen" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "14px", color: "#444" }}>
-                Select Your Doctor
-              </label>
-
-              {loadingDoctors ? (
-                <p style={{ color: "#666" }}>Loading doctors...</p>
-              ) : doctors.length === 0 ? (
-                <p style={{ color: "#b33", fontSize: "14px" }}>
-                  ⚠️ No doctors available yet. You can still sign up and select a doctor later.
-                </p>
-              ) : (
-                <select
-                  name="doctor_id"
-                  value={form.doctor_id}
-                  onChange={handleChange}
-                  style={{
-                    padding: "12px",
-                    border: "1px solid #ccc",
-                    borderRadius: "8px",
-                    fontSize: "15px",
-                  }}
-                >
-                  <option value="">Select a doctor</option>
-                  {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.full_name}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <button
+                type="button"
+                className={`user-type-btn ${role === "provider" ? "active" : ""}`}
+                onClick={() => setRole("provider")}
+              >
+                <span className="user-type-icon">🩺</span>
+                Doctor
+              </button>
             </div>
-          )}
 
-          {/* Password */}
-          <AuthInput
-            label="Password"
-            name="password"
-            type="password"
-            placeholder="Minimum 6 characters"
-            value={form.password}
-            onChange={handleChange}
-          />
+            {/* Full Name */}
+            <div className="form-field">
+              <label className="form-label">Full Name</label>
+              <input
+                name="full_name"
+                className="form-input"
+                placeholder="Enter your full name"
+                value={form.full_name}
+                onChange={handleChange}
+              />
+            </div>
 
-          {/* Confirm Password */}
-          <AuthInput
-            label="Confirm Password"
-            name="confirm"
-            type="password"
-            placeholder="Re-enter your password"
-            value={form.confirm}
-            onChange={handleChange}
-          />
+            {/* Email */}
+            <div className="form-field">
+              <label className="form-label">Email Address</label>
+              <input
+                name="email"
+                className="form-input"
+                placeholder="your.email@example.com"
+                value={form.email}
+                onChange={handleChange}
+              />
+            </div>
 
-          <SubmitButton>Sign Up</SubmitButton>
-        </form>
+            {/* Phone */}
+            <div className="form-field">
+              <label className="form-label">Phone Number (Optional)</label>
+              <input
+                name="phone"
+                className="form-input"
+                placeholder="+966 50 123 4567"
+                value={form.phone}
+                onChange={handleChange}
+              />
+            </div>
 
-        <p style={{ marginTop: "16px", textAlign: "center" }}>
-          Already have an account? <a href="/auth/login">Login</a>
-        </p>
+            {/* Doctor Select */}
+            {role === "citizen" && (
+              <div className="form-field">
+                <label className="form-label">Select Your Doctor</label>
+
+                {loadingDoctors ? (
+                  <p>Loading doctors...</p>
+                ) : doctors.length === 0 ? (
+                  <div
+                    style={{
+                      background: "#fef9c3",
+                      border: "1px solid #fde047",
+                      color: "#92400e",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.5rem",
+                      marginTop: "0.5rem",
+                      fontSize: "0.875rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.25rem" }}>⚠️</span>
+                    No doctors available yet. You can still sign up and select a doctor later.
+                  </div>
+
+                ) : (
+                  <select
+                    name="doctor_id"
+                    className="form-input"
+                    value={form.doctor_id}
+                    onChange={handleChange}
+                  >
+                    <option value="">Select a doctor</option>
+                    {doctors.map((doc) => (
+                      <option key={doc.id} value={doc.id}>
+                        {doc.full_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Password */}
+            <div className="form-field">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                name="password"
+                className="form-input"
+                placeholder="Minimum 6 characters"
+                value={form.password}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Confirm Password */}
+            <div className="form-field">
+              <label className="form-label">Confirm Password</label>
+              <input
+                type="password"
+                name="confirm"
+                className="form-input"
+                placeholder="Re-enter your password"
+                value={form.confirm}
+                onChange={handleChange}
+              />
+            </div>
+
+            <button className="auth-submit-btn">Sign Up</button>
+          </form>
+
+          <div className="auth-footer">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="auth-link">
+              Login
+            </Link>
+          </div>
+
+        </div>
       </div>
     </div>
   );

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import AuthCard from "@/components/auth/AuthCard";
-import AuthInput from "@/components/auth/AuthInput";
-import SubmitButton from "@/components/auth/SubmitButton";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function LoginPage() {
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -21,41 +22,72 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
-      window.location.href = "/";
+      window.location.href = "/dashboard";
     } else {
-      alert("Invalid login");
+      alert("Login failed");
     }
   };
 
   return (
-    <AuthCard title="Login" subtitle="Access your Sillah account">
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-      >
-        <AuthInput
-          label="Email"
-          name="email"
-          placeholder="your.email@example.com"
-          value={form.email}
-          onChange={handleChange}
-        />
+    <div className="auth-page">
+      <div className="auth-container">
+        <div className="auth-card">
 
-        <AuthInput
-          label="Password"
-          name="password"
-          type="password"
-          placeholder="Enter your password"
-          value={form.password}
-          onChange={handleChange}
-        />
+          {/* Header */}
+          <div className="auth-header">
+            <div className="brand-icon-large">
+              <div className="brand-icon-large">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="white"
+                  className="brand-heart-large"
+                >
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+              </div>
+            </div>
+            <h1 className="auth-title">Login</h1>
+            <p className="auth-subtitle">Access your Sillah account</p>
+          </div>
 
-        <SubmitButton>Login</SubmitButton>
-      </form>
+          {/* Form */}
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <div className="form-field">
+              <label className="form-label">Email</label>
+              <input
+                name="email"
+                className="form-input"
+                placeholder="your.email@example.com"
+                value={form.email}
+                onChange={handleChange}
+              />
+            </div>
 
-      <p style={{ marginTop: "16px", textAlign: "center" }}>
-        Don’t have an account? <Link href="/auth/signup">Sign up</Link>
-      </p>
-    </AuthCard>
+            <div className="form-field">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                name="password"
+                className="form-input"
+                placeholder="Enter your password"
+                value={form.password}
+                onChange={handleChange}
+              />
+            </div>
+
+            <button className="auth-submit-btn">Login</button>
+          </form>
+
+          <div className="auth-footer">
+            Don’t have an account?{" "}
+            <Link href="/auth/signup" className="auth-link">
+              Sign up
+            </Link>
+          </div>
+
+        </div>
+      </div>
+    </div>
   );
 }
