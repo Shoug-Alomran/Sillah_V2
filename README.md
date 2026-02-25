@@ -1,34 +1,16 @@
-# Sillah — Family Health Management System (Rebuilt Version)
+# React + Vite
 
-**Sillah** is a preventive health management system designed to help families track hereditary cardiac risks through a clean, intuitive digital experience.  
-This repository contains the **new, rebuilt version** of the project — created entirely from scratch with a clean architecture and a fully structured SQLite database.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## About This Rebuild
-The original Sillah project was developed for SE201 and relied on auto‑generated Base44 code, Firebase conversions, and temporary structures.  
-This new version is a **ground‑up rewrite** focused on:
+Currently, two official plugins are available:
 
-- A real, well‑designed **SQLite database**
-- Clean, maintainable project structure
-- Hand‑written code with full ownership
-- A realistic simulation of a medical‑record system
-- Clear separation between data, logic, and UI
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-This rebuild reflects everything learned from the first version and is designed for long‑term development, clarity, and future scalability.
+## React Compiler
 
-## Core Features
-- User accounts and role management  
-- Family member profiles  
-- Health event tracking  
-- Automated hereditary risk alerts  
-- Clinic directory and appointment booking  
-- Awareness hub with educational content  
-- Consent records and audit logging  
-- Fully structured SQLite schema
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Ownership
-©  Shoug Alomran. All rights reserved.  
-This project is proprietary. No part of this repository may be copied, modified, or distributed without written permission.
+## Expanding the ESLint configuration
 
-## Status
-Actively being rebuilt from scratch.  
-More documentation will be added as development progresses.
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
