@@ -7,7 +7,24 @@ import { QUERIES } from "./queries.js";
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  // add your Vercel domain after deploy:
+  // "https://YOUR-PROJECT.vercel.app",
+];
+
+app.use(
+  cors({
+    origin: function (origin, cb) {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
+    },
+  })
+);
+
 app.use(express.json());
 
 // health check
@@ -36,12 +53,10 @@ async function run(res, sql, params = []) {
    USERS (CRUD)
 ------------------------ */
 
-// GET users
 app.get("/api/users", (req, res) => {
   return run(res, "SELECT * FROM `User` ORDER BY user_id DESC");
 });
 
-// POST user
 app.post("/api/users", async (req, res) => {
   const { first_name, last_name, email, phone_number } = req.body;
 
@@ -57,7 +72,6 @@ app.post("/api/users", async (req, res) => {
   }
 });
 
-// PUT user
 app.put("/api/users/:id", async (req, res) => {
   const user_id = Number(req.params.id);
   const { first_name, last_name, email, phone_number } = req.body;
@@ -76,7 +90,6 @@ app.put("/api/users/:id", async (req, res) => {
   }
 });
 
-// DELETE user
 app.delete("/api/users/:id", async (req, res) => {
   const user_id = Number(req.params.id);
 
@@ -140,9 +153,32 @@ app.get("/api/queries/:qid", async (req, res) => {
   const q = QUERIES[qid];
   if (!q) return res.status(404).json({ error: "Unknown query id" });
 
-  // (optional) simple params support later if you need it
-  return run(res, q);
+  let params = [];
+
+  if (qid === "q03") {
+    const term = req.query.term ?? "";
+    params = [term];
+  }
+
+  if (qid === "q06") {
+    const user_id = Number(req.query.user_id ?? 0);
+    params = [user_id];
+  }
+
+  if (qid === "q09") {
+    const severity = req.query.severity ?? "Low";
+    params = [severity];
+  }
+
+  if (qid === "q12" || qid === "q14" || qid === "q16") {
+    const member_id = Number(req.query.member_id ?? 0);
+    params = [member_id];
+  }
+
+  return run(res, q, params);
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`API running on port ${PORT}`);
+});

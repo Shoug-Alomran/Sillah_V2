@@ -15,9 +15,9 @@ export const QUERIES = {
 
     // q03: search users by email
     q03: `SELECT user_id, first_name, last_name, email
-        FROM User
-        WHERE email LIKE CONCAT('%', :term, '%')
-        ORDER BY user_id DESC;`,
+      FROM User
+      WHERE email LIKE CONCAT('%', ?, '%')
+      ORDER BY user_id DESC;`,
 
     // q04: count family members
     q04: `SELECT COUNT(*) AS total_family_members FROM FamilyMember;`,
