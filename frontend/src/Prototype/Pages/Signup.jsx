@@ -103,7 +103,7 @@ export default function Signup() {
 
       // Important: signup may not create an active session immediately.
       // Send user to login after signup.
-      navigate("/login");
+      navigate("/dashboard");
     } catch (e) {
       console.error(e);
       setError(e?.message || "Failed to create account.");
