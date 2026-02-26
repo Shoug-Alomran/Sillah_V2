@@ -1,35 +1,20 @@
-import { supabase } from "./lib/supabaseClient";
-// SIGN UP
-export async function signup({ email, password, fullName, phone, role }) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: fullName,
-        phone,
-        role, // "patient" or "doctor"
-      },
+const API_BASE =
+  import.meta.env.VITE_API_BASE?.replace(/\/$/, "") || ""; 
+// If VITE_API_BASE is "", requests go to same-origin (works with Vite proxy in dev)
+
+export async function api(path, options = {}) {
+  const url = API_BASE ? `${API_BASE}${path}` : path;
+
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
     },
+    credentials: "include", // keep cookies (JWT cookie etc.)
   });
 
-  if (error) throw error;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || data.message || "Request failed");
   return data;
-}
-
-// LOG IN
-export async function login({ email, password }) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) throw error;
-  return data;
-}
-
-// LOG OUT
-export async function logout() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
 }
