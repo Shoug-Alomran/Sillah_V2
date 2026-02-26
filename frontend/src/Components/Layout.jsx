@@ -1,3 +1,4 @@
+// frontend/src/Components/Layout.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -12,14 +13,14 @@ import {
   LogOut,
   Menu,
   X,
-  User,
   Stethoscope,
   Pill,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Layout({ children, currentPageName }) {
-  const { logout, currentUser, userProfile, isDoctor, isPatient } = useAuth();
+  // ✅ AuthContext provides: currentUser, profile, isDoctor, isPatient
+  const { logout, currentUser, profile, isDoctor, isPatient } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -50,11 +51,11 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Desktop Navigation */}
           <div className="nav-links nav-links--desktop">
-            {/* Common links for all users */}
             <Link
               to="/dashboard"
-              className={`nav-link ${currentPageName === "Dashboard" ? "nav-link--active" : ""
-                }`}
+              className={`nav-link ${
+                currentPageName === "Dashboard" ? "nav-link--active" : ""
+              }`}
             >
               <LayoutDashboard className="nav-link-icon" />
               Dashboard
@@ -65,8 +66,9 @@ export default function Layout({ children, currentPageName }) {
               <>
                 <Link
                   to="/my-health"
-                  className={`nav-link ${currentPageName === "MyHealth" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "MyHealth" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Heart className="nav-link-icon" />
                   My Health
@@ -74,8 +76,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/alerts"
-                  className={`nav-link ${currentPageName === "Alerts" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Alerts" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Bell className="nav-link-icon" />
                   Alerts
@@ -83,8 +86,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/medications"
-                  className={`nav-link ${currentPageName === "Medications" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Medications" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Pill className="nav-link-icon" />
                   Medications
@@ -92,8 +96,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/appointments"
-                  className={`nav-link ${currentPageName === "Appointments" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Appointments" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Calendar className="nav-link-icon" />
                   Appointments
@@ -101,8 +106,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/clinics"
-                  className={`nav-link ${currentPageName === "Clinics" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Clinics" ? "nav-link--active" : ""
+                  }`}
                 >
                   <MapPin className="nav-link-icon" />
                   Clinics
@@ -110,8 +116,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/awareness-hub"
-                  className={`nav-link ${currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
+                  }`}
                 >
                   <BookOpen className="nav-link-icon" />
                   Awareness Hub
@@ -119,8 +126,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/family-tree"
-                  className={`nav-link ${currentPageName === "FamilyTree" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "FamilyTree" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Users className="nav-link-icon" />
                   Family Tree
@@ -128,8 +136,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/risk-assessment"
-                  className={`nav-link ${currentPageName === "RiskAssessment" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "RiskAssessment" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Activity className="nav-link-icon" />
                   Risk Assessment
@@ -142,8 +151,9 @@ export default function Layout({ children, currentPageName }) {
               <>
                 <Link
                   to="/patients"
-                  className={`nav-link ${currentPageName === "Patients" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Patients" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Users className="nav-link-icon" />
                   My Patients
@@ -151,8 +161,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/medications"
-                  className={`nav-link ${currentPageName === "Medications" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Medications" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Pill className="nav-link-icon" />
                   Medications
@@ -160,8 +171,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/appointments"
-                  className={`nav-link ${currentPageName === "Appointments" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Appointments" ? "nav-link--active" : ""
+                  }`}
                 >
                   <Calendar className="nav-link-icon" />
                   Appointments
@@ -169,8 +181,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/clinics"
-                  className={`nav-link ${currentPageName === "Clinics" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "Clinics" ? "nav-link--active" : ""
+                  }`}
                 >
                   <MapPin className="nav-link-icon" />
                   Clinics
@@ -178,8 +191,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/awareness-hub"
-                  className={`nav-link ${currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link ${
+                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
+                  }`}
                 >
                   <BookOpen className="nav-link-icon" />
                   Awareness Hub
@@ -196,7 +210,8 @@ export default function Layout({ children, currentPageName }) {
           {/* Mobile Menu Toggle */}
           <button
             className="menu-toggle"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="Toggle menu"
           >
             {mobileMenuOpen ? (
               <X className="menu-icon" />
@@ -211,21 +226,22 @@ export default function Layout({ children, currentPageName }) {
           <div className="nav-links nav-links--mobile">
             <Link
               to="/dashboard"
-              className={`nav-link nav-link--mobile ${currentPageName === "Dashboard" ? "nav-link--active" : ""
-                }`}
+              className={`nav-link nav-link--mobile ${
+                currentPageName === "Dashboard" ? "nav-link--active" : ""
+              }`}
               onClick={() => setMobileMenuOpen(false)}
             >
               <LayoutDashboard className="nav-link-icon" />
               Dashboard
             </Link>
 
-            {/* Patient-only mobile links */}
             {isPatient && (
               <>
                 <Link
                   to="/my-health"
-                  className={`nav-link nav-link--mobile ${currentPageName === "MyHealth" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "MyHealth" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Heart className="nav-link-icon" />
@@ -234,8 +250,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/alerts"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Alerts" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Alerts" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Bell className="nav-link-icon" />
@@ -244,8 +261,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/medications"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Medications" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Medications" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Pill className="nav-link-icon" />
@@ -254,8 +272,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/appointments"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Appointments" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Appointments" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Calendar className="nav-link-icon" />
@@ -264,8 +283,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/clinics"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Clinics" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Clinics" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <MapPin className="nav-link-icon" />
@@ -274,8 +294,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/awareness-hub"
-                  className={`nav-link nav-link--mobile ${currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <BookOpen className="nav-link-icon" />
@@ -284,8 +305,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/family-tree"
-                  className={`nav-link nav-link--mobile ${currentPageName === "FamilyTree" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "FamilyTree" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Users className="nav-link-icon" />
@@ -294,8 +316,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/risk-assessment"
-                  className={`nav-link nav-link--mobile ${currentPageName === "RiskAssessment" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "RiskAssessment" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Activity className="nav-link-icon" />
@@ -304,13 +327,13 @@ export default function Layout({ children, currentPageName }) {
               </>
             )}
 
-            {/* Doctor-only mobile links */}
             {isDoctor && (
               <>
                 <Link
                   to="/patients"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Patients" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Patients" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Users className="nav-link-icon" />
@@ -319,8 +342,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/medications"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Medications" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Medications" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Pill className="nav-link-icon" />
@@ -329,8 +353,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/appointments"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Appointments" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Appointments" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Calendar className="nav-link-icon" />
@@ -339,8 +364,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/clinics"
-                  className={`nav-link nav-link--mobile ${currentPageName === "Clinics" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "Clinics" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <MapPin className="nav-link-icon" />
@@ -349,8 +375,9 @@ export default function Layout({ children, currentPageName }) {
 
                 <Link
                   to="/awareness-hub"
-                  className={`nav-link nav-link--mobile ${currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                    }`}
+                  className={`nav-link nav-link--mobile ${
+                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <BookOpen className="nav-link-icon" />
@@ -370,10 +397,8 @@ export default function Layout({ children, currentPageName }) {
         )}
       </nav>
 
-      {/* Main Content */}
       <main className="app-main">{children}</main>
 
-      {/* Footer */}
       <footer className="app-footer">
         <div className="app-footer-inner">
           <div className="footer-col">

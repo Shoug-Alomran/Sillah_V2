@@ -280,4 +280,4 @@ export async function checkAndGenerateAlerts(userId) {
   }
   
   return result;
-}
+} 

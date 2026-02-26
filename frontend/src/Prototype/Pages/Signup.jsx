@@ -1,7 +1,17 @@
+// frontend/src/Prototype/Pages/Signup.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { Heart, Mail, Lock, User, AlertCircle, Phone, Stethoscope, Users } from "lucide-react";
+import {
+  Heart,
+  Mail,
+  Lock,
+  User,
+  AlertCircle,
+  Phone,
+  Stethoscope,
+  Users,
+} from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function Signup() {
@@ -21,7 +31,10 @@ export default function Signup() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchDoctors() {
+      // Only patients need the doctors dropdown
       if (userType !== "patient") {
         setDoctors([]);
         setSelectedDoctor("");
@@ -39,17 +52,21 @@ export default function Signup() {
 
         if (error) throw error;
 
-        setDoctors(data || []);
+        if (!cancelled) setDoctors(data || []);
       } catch (e) {
         console.error("Error fetching doctors:", e);
         // Don't block signup because doctors couldn't load
-        setDoctors([]);
+        if (!cancelled) setDoctors([]);
       } finally {
-        setLoadingDoctors(false);
+        if (!cancelled) setLoadingDoctors(false);
       }
     }
 
     fetchDoctors();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userType]);
 
   async function handleSubmit(e) {
@@ -65,7 +82,7 @@ export default function Signup() {
       return;
     }
 
-    // ✅ Only require selecting a doctor if doctors exist
+    // Only require selecting a doctor if doctors exist
     if (userType === "patient" && doctors.length > 0 && !selectedDoctor) {
       setError("Please select a doctor");
       return;
@@ -81,13 +98,14 @@ export default function Signup() {
         fullName,
         phoneNumber,
         role: userType,
-        selectedDoctorId: selectedDoctor || null
+        selectedDoctorId: selectedDoctor || null,
       });
 
-      navigate("/dashboard");
+      // Important: signup may not create an active session immediately.
+      // Send user to login after signup.
+      navigate("/login");
     } catch (e) {
       console.error(e);
-      // Supabase errors are usually meaningful
       setError(e?.message || "Failed to create account.");
     } finally {
       setLoading(false);
@@ -122,7 +140,9 @@ export default function Signup() {
               <div className="user-type-selector">
                 <button
                   type="button"
-                  className={`user-type-btn ${userType === "patient" ? "active" : ""}`}
+                  className={`user-type-btn ${
+                    userType === "patient" ? "active" : ""
+                  }`}
                   onClick={() => setUserType("patient")}
                 >
                   <Users className="user-type-icon" />
@@ -130,7 +150,9 @@ export default function Signup() {
                 </button>
                 <button
                   type="button"
-                  className={`user-type-btn ${userType === "doctor" ? "active" : ""}`}
+                  className={`user-type-btn ${
+                    userType === "doctor" ? "active" : ""
+                  }`}
                   onClick={() => setUserType("doctor")}
                 >
                   <Stethoscope className="user-type-icon" />
@@ -199,9 +221,19 @@ export default function Signup() {
                   </p>
                 ) : doctors.length === 0 ? (
                   <div className="doctor-notice">
-                    <AlertCircle className="form-label-icon" style={{ color: "#f59e0b" }} />
-                    <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0 }}>
-                      No doctors available yet. You can still sign up and select a doctor later.
+                    <AlertCircle
+                      className="form-label-icon"
+                      style={{ color: "#f59e0b" }}
+                    />
+                    <p
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "#6b7280",
+                        margin: 0,
+                      }}
+                    >
+                      No doctors available yet. You can still sign up and select
+                      a doctor later.
                     </p>
                   </div>
                 ) : (

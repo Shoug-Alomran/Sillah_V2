@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// frontend/src/Prototype/Pages/Clinics.jsx
+import React, { useMemo, useState } from "react";
 import { MapPin, Search, Star, Phone, Clock, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
@@ -6,40 +7,78 @@ import { clinicsData } from "../../data/clinics";
 
 export default function Clinics() {
   const navigate = useNavigate();
-  const { isDoctor, isPatient } = useAuth();
+  const { isDoctor, isPatient, loading: authLoading } = useAuth();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
 
-  const specialties = ["all", ...new Set(clinicsData.map((c) => c.specialty))];
-  const locations = ["all", ...new Set(clinicsData.map((c) => c.location))];
+  const clinics = Array.isArray(clinicsData) ? clinicsData : [];
 
-  const filteredClinics = clinicsData.filter((clinic) => {
-    const matchesSearch =
-      clinic.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      clinic.address.toLowerCase().includes(searchTerm.toLowerCase());
+  const specialties = useMemo(() => {
+    const set = new Set();
+    for (const c of clinics) {
+      if (c?.specialty) set.add(String(c.specialty));
+    }
+    return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [clinics]);
 
-    const matchesSpecialty =
-      specialtyFilter === "all" || clinic.specialty === specialtyFilter;
+  const locations = useMemo(() => {
+    const set = new Set();
+    for (const c of clinics) {
+      if (c?.location) set.add(String(c.location));
+    }
+    return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [clinics]);
 
-    const matchesLocation =
-      locationFilter === "all" || clinic.location === locationFilter;
+  const filteredClinics = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
 
-    return matchesSearch && matchesSpecialty && matchesLocation;
-  });
+    return clinics.filter((clinic) => {
+      const name = String(clinic?.name || "").toLowerCase();
+      const address = String(clinic?.address || "").toLowerCase();
+      const location = String(clinic?.location || "");
+      const specialty = String(clinic?.specialty || "");
+
+      const matchesSearch =
+        term === "" || name.includes(term) || address.includes(term);
+
+      const matchesSpecialty =
+        specialtyFilter === "all" || specialty === specialtyFilter;
+
+      const matchesLocation =
+        locationFilter === "all" || location === locationFilter;
+
+      return matchesSearch && matchesSpecialty && matchesLocation;
+    });
+  }, [clinics, searchTerm, specialtyFilter, locationFilter]);
 
   const handleBookAppointment = (clinic) => {
     if (isDoctor) {
       alert("Doctors cannot book appointments. This feature is for patients only.");
       return;
     }
-    navigate("/appointments", { 
-      state: { 
-        clinic: clinic,
-        isBooking: true 
-      } 
+    navigate("/appointments", {
+      state: {
+        clinic,
+        isBooking: true,
+      },
     });
   };
+
+  if (authLoading) {
+    return (
+      <div className="clinics-page">
+        <div className="clinics-container">
+          <div className="empty-state">
+            <MapPin className="empty-icon" />
+            <p className="empty-title">Loading...</p>
+            <p className="empty-text">Preparing clinic list.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="clinics-page">
@@ -50,9 +89,7 @@ export default function Clinics() {
             Nearby Certified Clinics
           </h1>
           <p className="clinics-subtitle">
-            {isDoctor 
-              ? "View clinic information and details" 
-              : "Book preventive screening appointments"}
+            {isDoctor ? "View clinic information and details" : "Book preventive screening appointments"}
           </p>
         </header>
 
@@ -79,6 +116,7 @@ export default function Clinics() {
               className="search-input"
             />
           </div>
+
           <div className="filters-row">
             <div className="filter-group">
               <select
@@ -94,6 +132,7 @@ export default function Clinics() {
                 ))}
               </select>
             </div>
+
             <div className="filter-group">
               <select
                 value={locationFilter}
@@ -120,7 +159,7 @@ export default function Clinics() {
         ) : (
           <div className="clinics-grid">
             {filteredClinics.map((clinic) => (
-              <div key={clinic.id} className="clinic-card-component">
+              <div key={clinic.id || `${clinic.name}-${clinic.address}`} className="clinic-card-component">
                 <div className="clinic-card-header-component">
                   <div className="clinic-header-content">
                     <div>
@@ -164,12 +203,12 @@ export default function Clinics() {
                     </span>
                   </div>
 
-                  {clinic.available_slots && clinic.available_slots.length > 0 && (
+                  {Array.isArray(clinic.available_slots) && clinic.available_slots.length > 0 && (
                     <div className="clinic-slots-section">
                       <p className="slots-label">Available Today:</p>
                       <div className="slots-badges">
                         {clinic.available_slots.map((slot, index) => (
-                          <span key={index} className="slot-badge">
+                          <span key={`${clinic.id || clinic.name}-slot-${index}`} className="slot-badge">
                             {slot}
                           </span>
                         ))}
@@ -180,20 +219,13 @@ export default function Clinics() {
 
                 <div className="clinic-card-footer-component">
                   {isPatient ? (
-                    <button 
-                      className="clinic-book-btn"
-                      onClick={() => handleBookAppointment(clinic)}
-                    >
+                    <button className="clinic-book-btn" onClick={() => handleBookAppointment(clinic)}>
                       Book Appointment
                     </button>
                   ) : (
-                    <button 
+                    <button
                       className="clinic-book-btn"
-                      style={{ 
-                        background: "#d1d5db", 
-                        cursor: "not-allowed",
-                        opacity: 0.6 
-                      }}
+                      style={{ background: "#d1d5db", cursor: "not-allowed", opacity: 0.6 }}
                       disabled
                     >
                       View Only

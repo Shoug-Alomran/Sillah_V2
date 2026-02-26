@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { 
-  Heart, 
-  Bell, 
-  Calendar, 
-  BookOpen, 
-  Users, 
-  Activity, 
+import {
+  Heart,
+  Bell,
+  Calendar,
+  BookOpen,
+  Users,
+  Activity,
   Stethoscope,
   TrendingUp,
   AlertTriangle,
@@ -43,14 +43,14 @@ export default function Dashboard() {
           );
           const assignmentsSnapshot = await getDocs(assignmentsQuery);
           const patientIds = assignmentsSnapshot.docs.map(doc => doc.data().patient_id);
-          
+
           let highRiskCount = 0;
           let totalFamilyMembers = 0;
 
           for (const patientId of patientIds) {
             const userQuery = query(collection(db, "users"), where("uid", "==", patientId));
             const userSnapshot = await getDocs(userQuery);
-            
+
             if (!userSnapshot.empty) {
               const patientData = userSnapshot.docs[0].data();
               if (patientData.risk_level === 'high') highRiskCount++;
@@ -146,11 +146,11 @@ export default function Dashboard() {
             {isDoctor ? 'Healthcare Provider Portal' : 'Family Health Portal'}
           </p>
           <p className="dashboard-welcome">
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+            {new Date().toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
             })}
           </p>
         </div>
@@ -317,7 +317,7 @@ export default function Dashboard() {
             <h2 className="quick-actions-title" style={{ margin: 0 }}>Patient Privacy & Access</h2>
           </div>
           <p>
-            {isDoctor 
+            {isDoctor
               ? `You have access to ${stats.patientCount} patients assigned to you. Patient data is protected by healthcare privacy regulations. You can only view and manage patients who have been specifically assigned to your care.`
               : 'Your health information is protected and secure. Only healthcare providers directly involved in your care have access to your medical records in accordance with privacy regulations.'
             }

@@ -1,29 +1,52 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { Heart, Mail, Lock, AlertCircle } from 'lucide-react';
+// frontend/src/Prototype/Pages/Login.jsx
+import React, { useState } from "react";
+import { useAuth } from "../../contexts/AuthContext";
+import { useNavigate, Link } from "react-router-dom";
+import { Heart, Mail, Lock, AlertCircle } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
 
-    try {
-      setError('');
-      setLoading(true);
-      await login(email, password);
-      navigate('/dashboard');
-    } catch (error) {
-      setError('Failed to login. Please check your credentials.');
-      console.error(error);
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
+      setError("Please enter your email and password.");
+      return;
     }
-    setLoading(false);
+
+    try {
+      setError("");
+      setLoading(true);
+
+      await login(cleanEmail, password);
+
+      // If login succeeds, session exists -> go to dashboard
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Login error:", err);
+
+      const msg = String(err?.message || "");
+
+      // Common Supabase cases (helpful UX)
+      if (msg.toLowerCase().includes("email not confirmed")) {
+        setError("Your email isn’t confirmed yet. Check your inbox and confirm, then try again.");
+      } else if (msg.toLowerCase().includes("invalid login credentials")) {
+        setError("Invalid email or password.");
+      } else {
+        setError(msg || "Failed to login. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -39,7 +62,7 @@ export default function Login() {
           </div>
 
           {error && (
-            <div className="auth-error">
+            <div className="auth-error" role="alert" aria-live="polite">
               <AlertCircle className="error-icon" />
               <span>{error}</span>
             </div>
@@ -59,6 +82,9 @@ export default function Login() {
                 className="form-input"
                 placeholder="your.email@example.com"
                 required
+                autoComplete="email"
+                inputMode="email"
+                disabled={loading}
               />
             </div>
 
@@ -75,20 +101,23 @@ export default function Login() {
                 className="form-input"
                 placeholder="Enter your password"
                 required
+                autoComplete="current-password"
+                disabled={loading}
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="auth-submit-btn"
-            >
-              {loading ? 'Logging in...' : 'Login'}
+            <button type="submit" disabled={loading} className="auth-submit-btn">
+              {loading ? "Logging in..." : "Login"}
             </button>
           </form>
 
           <div className="auth-footer">
-            <p>Don't have an account? <Link to="/signup" className="auth-link">Sign up</Link></p>
+            <p>
+              Don&apos;t have an account?{" "}
+              <Link to="/signup" className="auth-link">
+                Sign up
+              </Link>
+            </p>
           </div>
         </div>
       </div>
