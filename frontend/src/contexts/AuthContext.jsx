@@ -37,15 +37,17 @@ export function AuthProvider({ children }) {
 
   // Check existing session on first load
   async function refreshSession() {
-    const { data } = await supabase.auth.getSession();
-    const user = data?.session?.user ?? null;
+  const { data } = await supabase.auth.getSession();
+  console.log("SESSION:", data);
 
-    setCurrentUser(user);
+  const user = data?.session?.user ?? null;
 
-    if (user) {
-      await loadProfile(user.id);
-    }
+  setCurrentUser(user);
+
+  if (user) {
+    await loadProfile(user.id);
   }
+}
 
   async function login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({
