@@ -1,26 +1,36 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "";
+import { supabase } from "./supabaseClient";
 
-export async function api(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
+// SIGN UP
+export async function signup({ email, password, fullName, phone, role }) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        phone,
+        role, // "patient" or "doctor"
+      },
+    },
   });
 
-  const text = await res.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  if (!res.ok) {
-    const msg =
-      typeof data === "object" && data?.error
-        ? data.error
-        : `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
+  if (error) throw error;
   return data;
+}
+
+// LOG IN
+export async function login({ email, password }) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+// LOG OUT
+export async function logout() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }

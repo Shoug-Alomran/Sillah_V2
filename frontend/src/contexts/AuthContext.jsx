@@ -1,69 +1,129 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
-
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function api(path, options = {}) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-      credentials: "include" // ✅ so cookie JWT works
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
+  async function loadProfile(userId) {
+    if (!userId) {
+      setProfile(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      // If profile doesn't exist yet, don't hard-fail the app.
+      setProfile(null);
+      return;
+    }
+    setProfile(data);
   }
 
-  async function refreshMe() {
-    const data = await api("/api/auth/me");
-    setCurrentUser(data.user);
+  async function refreshSession() {
+    const { data } = await supabase.auth.getSession();
+    const user = data?.session?.user ?? null;
+    setCurrentUser(user);
+    await loadProfile(user?.id);
   }
 
   async function login(email, password) {
-    const data = await api("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password })
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
     setCurrentUser(data.user);
+    await loadProfile(data.user.id);
     return data.user;
   }
 
+  /**
+   * signup expects:
+   * {
+   *   email, password,
+   *   fullName, phoneNumber,
+   *   role: "patient" | "doctor",
+   *   selectedDoctorId?: string | null
+   * }
+   */
   async function signup(payload) {
-    const data = await api("/api/auth/signup", {
-      method: "POST",
-      body: JSON.stringify(payload)
+    const { email, password, fullName, phoneNumber, role, selectedDoctorId } = payload;
+
+    // Create auth user
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password
     });
-    setCurrentUser(data.user);
-    return data.user;
+    if (error) throw error;
+
+    const user = data.user;
+    setCurrentUser(user);
+
+    // Create/Upsert profile row
+    // (Works whether row exists or not)
+    const { error: upsertError } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          email,
+          full_name: fullName,
+          phone_number: phoneNumber || null,
+          role,
+          selected_doctor_id: role === "patient" ? (selectedDoctorId || null) : null
+        },
+        { onConflict: "id" }
+      );
+
+    if (upsertError) throw upsertError;
+
+    await loadProfile(user.id);
+    return user;
   }
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" });
+    await supabase.auth.signOut();
     setCurrentUser(null);
+    setProfile(null);
   }
-
-  const isDoctor = currentUser?.role === "doctor";
-  const isPatient = currentUser?.role === "patient";
 
   useEffect(() => {
     (async () => {
       try {
-        await refreshMe();
+        await refreshSession();
       } finally {
         setLoading(false);
       }
     })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const user = session?.user ?? null;
+      setCurrentUser(user);
+      await loadProfile(user?.id);
+    });
+
+    return () => sub.subscription.unsubscribe();
   }, []);
 
-  const value = useMemo(
-    () => ({ currentUser, loading, login, signup, logout, isDoctor, isPatient }),
-    [currentUser, loading]
-  );
+  const value = useMemo(() => {
+    const role = profile?.role;
+    return {
+      currentUser,
+      profile,
+      loading,
+      login,
+      signup,
+      logout,
+      isDoctor: role === "doctor",
+      isPatient: role === "patient"
+    };
+  }, [currentUser, profile, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
