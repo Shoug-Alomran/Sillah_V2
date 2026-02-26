@@ -70,47 +70,52 @@ export default function Signup() {
   }, [userType]);
 
   async function handleSubmit(e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-
-    // Only require selecting a doctor if doctors exist
-    if (userType === "patient" && doctors.length > 0 && !selectedDoctor) {
-      setError("Please select a doctor");
-      return;
-    }
-
-    try {
-      setError("");
-      setLoading(true);
-
-      await signup({
-        email,
-        password,
-        fullName,
-        phoneNumber,
-        role: userType,
-        selectedDoctorId: selectedDoctor || null,
-      });
-
-      // Important: signup may not create an active session immediately.
-      // Send user to login after signup.
-      navigate("/dashboard");
-    } catch (e) {
-      console.error(e);
-      setError(e?.message || "Failed to create account.");
-    } finally {
-      setLoading(false);
-    }
+  if (password !== confirmPassword) {
+    setError("Passwords do not match");
+    return;
   }
+
+  if (password.length < 6) {
+    setError("Password must be at least 6 characters");
+    return;
+  }
+
+  if (userType === "patient" && doctors.length > 0 && !selectedDoctor) {
+    setError("Please select a doctor");
+    return;
+  }
+
+  try {
+    setError("");
+    setLoading(true);
+
+    await signup({
+      email,
+      password,
+      fullName,
+      phoneNumber,
+      role: userType,
+      selectedDoctorId: selectedDoctor || null,
+    });
+
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (loginError) throw loginError;
+
+    navigate("/dashboard");
+
+  } catch (e) {
+    console.error(e);
+    setError(e?.message || "Failed to create account.");
+  } finally {
+    setLoading(false);
+  }
+}
 
   return (
     <div className="auth-page">
