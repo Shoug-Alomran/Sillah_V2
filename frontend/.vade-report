@@ -1,49 +1,43 @@
-# Vercel Speed Insights Implementation
+# Vercel Web Analytics Implementation
 
-## Overview
-Successfully implemented Vercel Speed Insights in the React + Vite application as requested.
+Successfully implemented Vercel Web Analytics for the Sillah_V2 frontend project.
 
 ## Changes Made
 
-### Modified Files:
-1. **src/App.jsx**
-   - Added import for `SpeedInsights` component from `@vercel/speed-insights/react`
-   - Wrapped the existing `<Routes>` component with a React Fragment (`<>`)
-   - Added `<SpeedInsights />` component at the bottom of the App component
-   - This ensures Speed Insights tracks all routes in the application
+### 1. Package Installation
+- Added `@vercel/analytics` package (v1.6.1) to the project dependencies
+- Used npm to install the package, which updated both `package.json` and `package-lock.json`
 
-2. **package-lock.json**
-   - Updated lockfile after running `npm install` to ensure dependencies are properly resolved
-   - No new dependencies added (package already had `@vercel/speed-insights` v1.3.1)
+### 2. Code Changes
+**Modified: `src/App.jsx`**
+- Imported the `Analytics` component from `@vercel/analytics/react`
+- Added the `<Analytics />` component to the main App component, placed alongside the existing `<SpeedInsights />` component
 
 ## Implementation Details
 
-The implementation follows Vercel's official documentation for React applications:
-- Used the `@vercel/speed-insights/react` package (already installed as a dependency)
-- Placed the `<SpeedInsights />` component in the root App component to track all pages
-- The component is rendered alongside the Routes to ensure it's present on all pages
+The implementation follows the React (Create React App) pattern from the Vercel documentation:
+- Used the `@vercel/analytics/react` package for React applications
+- The `Analytics` component is a wrapper around the tracking script that provides seamless integration with React
+- Placed the component at the root level of the application to track all route changes
+- The component works with the existing React Router setup for automatic route tracking
 
 ## Verification
 
-✅ **Build Status**: Successfully built with `npm run build`
-- No build errors introduced
-- Build output: 559.01 kB main bundle (gzipped: 154.85 kB)
-
-✅ **Linting**: No new linting errors introduced
-- Pre-existing linting issues remain unchanged
-- Changes to App.jsx are clean and follow React best practices
+✅ Build completed successfully (`npm run build`)
+✅ No new linting errors introduced in `App.jsx`
+✅ Package dependencies properly updated
+✅ The Analytics component is positioned correctly in the component tree
 
 ## Next Steps
 
-To enable Speed Insights data collection:
-1. Deploy the application to Vercel
-2. Enable Speed Insights in the Vercel dashboard (Project → Speed Insights tab)
-3. After deployment, verify the `/_vercel/speed-insights/script.js` is loaded
-4. Performance metrics will begin appearing in the dashboard after users visit the site
+After deployment to Vercel:
+1. Enable Web Analytics in the Vercel dashboard (Analytics tab → Enable)
+2. After the next deployment, verify the `/_vercel/insights/view` endpoint is accessible
+3. Monitor analytics data in the Vercel dashboard
 
 ## Notes
 
-- The `@vercel/speed-insights` package was already installed in package.json
-- No additional configuration is required
-- The component will automatically track Core Web Vitals and performance metrics
-- Data will only be collected in production deployments on Vercel
+- The project already had `@vercel/speed-insights` installed, so this addition complements the existing Vercel integrations
+- Both Speed Insights and Web Analytics components are now present in the App component
+- The implementation preserves all existing code structure and functionality
+- Route tracking is automatic thanks to React Router integration
