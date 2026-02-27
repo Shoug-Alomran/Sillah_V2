@@ -31,6 +31,7 @@ const RELATIONSHIP_OPTIONS = [
 
 export default function FamilyTree() {
   const { currentUser, isPatient } = useAuth();
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const [familyMembers, setFamilyMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,12 +157,25 @@ export default function FamilyTree() {
     setFormData(EMPTY_FORM);
   }
 
+  function isFutureDate(dateStr) {
+    if (!dateStr) return false;
+    return dateStr > todayISO;
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     if (!currentUser?.id || !isPatient) return;
 
     if (!formData.full_name.trim() || !formData.relationship.trim()) {
       alert("Full name and relationship are required.");
+      return;
+    }
+    if (isFutureDate(formData.date_of_birth)) {
+      alert("Date of birth cannot be in the future.");
+      return;
+    }
+    if (isFutureDate(formData.diagnosis_date)) {
+      alert("Diagnosis date cannot be in the future.");
       return;
     }
 
@@ -465,6 +479,7 @@ export default function FamilyTree() {
                     value={formData.date_of_birth}
                     onChange={(e) => setFormData((p) => ({ ...p, date_of_birth: e.target.value }))}
                     className="form-input"
+                    max={todayISO}
                   />
                 </div>
 
@@ -488,6 +503,7 @@ export default function FamilyTree() {
                     value={formData.diagnosis_date}
                     onChange={(e) => setFormData((p) => ({ ...p, diagnosis_date: e.target.value }))}
                     className="form-input"
+                    max={todayISO}
                   />
                 </div>
 

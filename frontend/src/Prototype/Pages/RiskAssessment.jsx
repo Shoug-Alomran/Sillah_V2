@@ -4,6 +4,33 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
+const CLOSE_RELATIONSHIPS = new Set(["father", "mother", "brother", "sister", "son", "daughter"]);
+const MODERATE_RELATIONSHIPS = new Set(["grandfather", "grandmother", "uncle", "aunt", "cousin"]);
+
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function classifyCondition(conditionName, notes) {
+  const text = `${conditionName || ""} ${notes || ""}`.toLowerCase();
+
+  const isSickleCell = text.includes("sickle") || text.includes("scd");
+  const isHereditary =
+    isSickleCell ||
+    text.includes("genetic") ||
+    text.includes("heredit") ||
+    text.includes("family history") ||
+    text.includes("thalassemia") ||
+    text.includes("hemophilia") ||
+    text.includes("cystic fibrosis") ||
+    text.includes("huntington") ||
+    text.includes("muscular dystrophy") ||
+    text.includes("brca") ||
+    text.includes("g6pd");
+
+  return { isSickleCell, isHereditary };
+}
+
 export default function RiskAssessment() {
   const navigate = useNavigate();
   const { currentUser, isPatient } = useAuth();
@@ -45,22 +72,26 @@ export default function RiskAssessment() {
 
         if (famErr) throw famErr;
 
-        const memberIds = (familyMembers || []).map((m) => m.id);
+        const relatives = (familyMembers || []).filter(
+          (m) => normalize(m.relationship) !== "self"
+        );
+        const relativeIds = relatives.map((m) => m.id);
 
         let history = [];
-        if (memberIds.length > 0) {
+        if (relativeIds.length > 0) {
           const { data: med, error: medErr } = await supabase
             .from("medical_history")
             .select("id, family_member_id, condition_name, diagnosis_date, notes")
-            .in("family_member_id", memberIds)
-            .order("diagnosis_date", { ascending: false, nullsFirst: false });
+            .in("family_member_id", relativeIds)
+            .order("diagnosis_date", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
 
           if (medErr) throw medErr;
           history = med || [];
         }
 
         if (!cancelled) {
-          setMembers(familyMembers || []);
+          setMembers(relatives);
           setRecords(history);
         }
       } catch (err) {
@@ -77,80 +108,117 @@ export default function RiskAssessment() {
     };
   }, [currentUser?.id, isPatient]);
 
-  const sickleRecords = useMemo(() => {
-    return records.filter((r) => {
-      const text = `${r.condition_name || ""} ${r.notes || ""}`.toLowerCase();
-      return text.includes("sickle") || text.includes("scd");
-    });
-  }, [records]);
+  const membersById = useMemo(() => {
+    const map = new Map();
+    members.forEach((member) => map.set(member.id, member));
+    return map;
+  }, [members]);
 
-  const hereditaryRecords = useMemo(() => {
-    return records.filter((r) => {
-      const text = `${r.condition_name || ""} ${r.notes || ""}`.toLowerCase();
-      return text.includes("heredit") || text.includes("genetic") || text.includes("family history");
-    });
-  }, [records]);
+  const analyzedRecords = useMemo(() => {
+    return records.map((record) => {
+      const member = membersById.get(record.family_member_id);
+      const relation = normalize(member?.relationship);
+      const relationWeight = CLOSE_RELATIONSHIPS.has(relation)
+        ? 2
+        : MODERATE_RELATIONSHIPS.has(relation)
+          ? 1.5
+          : 1;
 
-  const diagnosedMembers = useMemo(() => {
-    return new Set(sickleRecords.map((r) => r.family_member_id)).size;
-  }, [sickleRecords]);
+      const classification = classifyCondition(record.condition_name, record.notes);
 
-  const risk = useMemo(() => {
-    if (diagnosedMembers >= 2 || sickleRecords.length >= 3) {
+      let points = 0;
+      if (classification.isSickleCell) points += 40;
+      else if (classification.isHereditary) points += 25;
+      else points += 10;
+
+      points += relationWeight * 10;
+
       return {
-        level: "High Risk",
-        color: "red",
-        message: "Multiple SCD-related records were found in your family history. Clinical follow-up is recommended.",
-        severity: "critical"
+        ...record,
+        member,
+        relation,
+        relationWeight,
+        ...classification,
+        points
       };
-    }
+    });
+  }, [records, membersById]);
 
-    if (diagnosedMembers === 1 || sickleRecords.length >= 1 || hereditaryRecords.length >= 2) {
-      return {
-        level: "Moderate Risk",
-        color: "amber",
-        message: "Some hereditary/SCD indicators were found. Regular monitoring is advised.",
-        severity: "moderate"
-      };
+  const riskSummary = useMemo(() => {
+    const sickle = analyzedRecords.filter((r) => r.isSickleCell);
+    const hereditary = analyzedRecords.filter((r) => r.isHereditary);
+
+    const uniqueAffectedRelatives = new Set(hereditary.map((r) => r.family_member_id)).size;
+    const closeAffected = new Set(
+      hereditary
+        .filter((r) => CLOSE_RELATIONSHIPS.has(r.relation))
+        .map((r) => r.family_member_id)
+    ).size;
+
+    const rawScore = analyzedRecords.reduce((sum, r) => sum + r.points, 0);
+    const normalizedScore = Math.min(100, Math.round(rawScore / Math.max(1, members.length)));
+
+    let level = "Low Risk";
+    let color = "green";
+    let severity = "low";
+    let message = "No significant hereditary risk patterns were detected from current family data.";
+
+    if (normalizedScore >= 70 || sickle.length >= 2 || closeAffected >= 2) {
+      level = "High Risk";
+      color = "red";
+      severity = "critical";
+      message = "Strong hereditary risk pattern detected. Prioritize specialist consultation and early screening.";
+    } else if (normalizedScore >= 35 || sickle.length >= 1 || closeAffected >= 1) {
+      level = "Moderate Risk";
+      color = "amber";
+      severity = "moderate";
+      message = "Some hereditary risk indicators are present. Preventive follow-up is recommended.";
+    } else if (analyzedRecords.length > 0) {
+      level = "Low-Moderate Risk";
+      color = "yellow";
+      severity = "low-moderate";
+      message = "Limited risk indicators found. Continue monitoring and keep records updated.";
     }
 
     return {
-      level: "Low Risk",
-      color: "green",
-      message: "No strong hereditary risk indicators found in current records.",
-      severity: "low"
+      level,
+      color,
+      severity,
+      message,
+      score: normalizedScore,
+      counts: {
+        totalRecords: analyzedRecords.length,
+        hereditaryRecords: hereditary.length,
+        sickleRecords: sickle.length,
+        uniqueAffectedRelatives,
+        closeAffected
+      }
     };
-  }, [diagnosedMembers, sickleRecords.length, hereditaryRecords.length]);
+  }, [analyzedRecords, members.length]);
 
   const recommendations = useMemo(() => {
-    if (risk.severity === "critical") {
+    if (riskSummary.severity === "critical") {
       return [
-        "Schedule specialist follow-up within the next 2-4 weeks",
-        "Discuss family history and possible genetic testing with your provider",
-        "Keep family medical history records updated in Sillah"
+        "Book a specialist appointment in the next 2-4 weeks.",
+        "Discuss genetic counseling and targeted screening.",
+        "Share family history records with all treating clinicians."
       ];
     }
 
-    if (risk.severity === "moderate") {
+    if (riskSummary.severity === "moderate") {
       return [
-        "Keep regular annual checkups",
-        "Discuss family-history findings with your doctor",
-        "Update medical records whenever new diagnoses occur"
+        "Schedule preventive checkups and discuss family risk profile.",
+        "Track new family diagnoses as they happen.",
+        "Review lifestyle and early-warning signs with your doctor."
       ];
     }
 
     return [
-      "Continue routine preventive care",
-      "Maintain healthy lifestyle habits",
-      "Keep family records updated for future reassessments"
+      "Continue routine annual health follow-up.",
+      "Maintain healthy lifestyle habits.",
+      "Keep family records updated for better future assessment quality."
     ];
-  }, [risk.severity]);
-
-  const riskPercentage = useMemo(() => {
-    if (members.length === 0) return 0;
-    const score = Math.min(100, diagnosedMembers * 35 + sickleRecords.length * 15 + hereditaryRecords.length * 10);
-    return score;
-  }, [members.length, diagnosedMembers, sickleRecords.length, hereditaryRecords.length]);
+  }, [riskSummary.severity]);
 
   if (loading) {
     return (
@@ -222,6 +290,30 @@ export default function RiskAssessment() {
     );
   }
 
+  if (records.length === 0) {
+    return (
+      <div className="risk-assessment-page">
+        <div className="risk-assessment-container">
+          <div className="risk-assessment-header">
+            <h1 className="risk-assessment-title">
+              <Heart className="title-icon" />
+              Risk Assessment
+            </h1>
+            <p className="risk-assessment-subtitle">Hereditary health risk analysis</p>
+          </div>
+          <div className="empty-state">
+            <Info className="empty-icon" />
+            <p className="empty-title">Not Enough Clinical Data Yet</p>
+            <p className="empty-text">Add family conditions in Family Tree to generate risk scoring.</p>
+            <button onClick={() => navigate("/family-tree")} className="empty-action-btn">
+              Add Family Conditions
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="risk-assessment-page">
       <div className="risk-assessment-container">
@@ -231,31 +323,46 @@ export default function RiskAssessment() {
             Risk Assessment
           </h1>
           <p className="risk-assessment-subtitle">
-            Based on {members.length} family member{members.length !== 1 ? "s" : ""} and {records.length} health record{records.length !== 1 ? "s" : ""}
+            Based on {members.length} family member{members.length !== 1 ? "s" : ""} and {records.length} documented condition{records.length !== 1 ? "s" : ""}
           </p>
         </div>
 
-        <div className={`risk-level-card risk-border-${risk.color}`}>
+        <div className={`risk-level-card risk-border-${riskSummary.color}`}>
           <div className="risk-level-header">
             <h2 className="risk-level-title">Overall Risk Level</h2>
-            <span className={`risk-level-badge badge-${risk.color}`}>{risk.level}</span>
+            <span className={`risk-level-badge badge-${riskSummary.color}`}>{riskSummary.level}</span>
           </div>
 
           <div className="risk-level-body">
-            <div className={`risk-message-box message-${risk.color}`}>
+            <div className={`risk-message-box message-${riskSummary.color}`}>
               <p className="risk-message">
                 <Info className="message-icon" />
-                {risk.message}
+                {riskSummary.message}
               </p>
             </div>
 
             <div className="risk-percentage-box">
               <div className="risk-percentage-header">
                 <span className="risk-percentage-label">Risk Score</span>
-                <span className="risk-percentage-value">{riskPercentage}%</span>
+                <span className="risk-percentage-value">{riskSummary.score}%</span>
               </div>
               <div className="risk-percentage-bar">
-                <div className={`risk-percentage-fill bg-${risk.color}`} style={{ width: `${riskPercentage}%` }} />
+                <div className={`risk-percentage-fill bg-${riskSummary.color}`} style={{ width: `${riskSummary.score}%` }} />
+              </div>
+            </div>
+
+            <div className="risk-percentage-box" style={{ marginTop: "1rem" }}>
+              <div className="risk-percentage-header">
+                <span className="risk-percentage-label">Affected Relatives</span>
+                <span className="risk-percentage-value">{riskSummary.counts.uniqueAffectedRelatives}</span>
+              </div>
+              <div className="risk-percentage-header">
+                <span className="risk-percentage-label">Close-Relative Cases</span>
+                <span className="risk-percentage-value">{riskSummary.counts.closeAffected}</span>
+              </div>
+              <div className="risk-percentage-header">
+                <span className="risk-percentage-label">SCD-related Records</span>
+                <span className="risk-percentage-value">{riskSummary.counts.sickleRecords}</span>
               </div>
             </div>
           </div>

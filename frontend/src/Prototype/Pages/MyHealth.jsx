@@ -11,6 +11,7 @@ const EMPTY_FORM = {
 
 export default function MyHealth() {
   const { currentUser, profile, isPatient } = useAuth();
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const [selfMember, setSelfMember] = useState(null);
   const [healthRecords, setHealthRecords] = useState([]);
@@ -139,6 +140,10 @@ export default function MyHealth() {
 
     if (!selfMember?.id || !formData.condition_name.trim()) {
       alert("Condition/diagnosis is required.");
+      return;
+    }
+    if (formData.diagnosis_date && formData.diagnosis_date > todayISO) {
+      alert("Diagnosis date cannot be in the future.");
       return;
     }
 
@@ -340,6 +345,7 @@ export default function MyHealth() {
                     value={formData.diagnosis_date}
                     onChange={(e) => setFormData((p) => ({ ...p, diagnosis_date: e.target.value }))}
                     className="form-input"
+                    max={todayISO}
                   />
                 </div>
 
