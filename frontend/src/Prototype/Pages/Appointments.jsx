@@ -34,56 +34,27 @@ function appointmentTimeLabel(appointment) {
   return parsed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-async function insertAppointmentSchemaSafe(basePayload) {
-  const payloadVariants = [
-    basePayload,
-    // Fallback: remove optional location fields that may not exist in some schemas
-    (({ address, phone, location, ...rest }) => rest)(basePayload),
-    // Fallback for strict appointments schema (no clinic_name/reason/notes/etc)
-    (({ patient_id, doctor_id, appointment_date, status }) => ({
-      patient_id,
-      doctor_id,
-      appointment_date,
-      clinic_id: null,
-      status
-    }))(basePayload)
-  ];
+function isUpcomingStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return s === "pending" || s === "scheduled" || s === "confirmed";
+}
 
-  let lastError = null;
+function statusLabel(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "pending") return "Pending Confirmation";
+  if (!s) return "Pending Confirmation";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
-  for (const payload of payloadVariants) {
-    const candidateStatuses = payload.status ? [payload.status, "pending", "booked", "requested"] : [null];
+async function insertAppointment(basePayload) {
+  const { data, error } = await supabase
+    .from("appointments")
+    .insert(basePayload)
+    .select("*")
+    .single();
 
-    for (const statusValue of candidateStatuses) {
-      const finalPayload = statusValue ? { ...payload, status: statusValue } : { ...payload };
-      if (!statusValue) delete finalPayload.status;
-
-      const { data, error } = await supabase
-        .from("appointments")
-        .insert(finalPayload)
-        .select("*")
-        .single();
-
-      if (!error) return data;
-
-      lastError = error;
-
-      // If enum value is invalid, try next status candidate
-      if (error.code === "22P02" && String(error.message || "").toLowerCase().includes("appt_status")) {
-        continue;
-      }
-
-      // Continue to next payload variant only for missing-column errors
-      if (error.code === "PGRST204" || error.code === "42703") {
-        break;
-      }
-
-      // Any other error: stop early
-      throw error;
-    }
-  }
-
-  throw lastError || new Error("Unable to book appointment");
+  if (error) throw error;
+  return data;
 }
 
 export default function Appointments() {
@@ -236,7 +207,7 @@ export default function Appointments() {
       return;
     }
 
-    if (!bookingForm.clinic_name || !bookingForm.appointment_date || !bookingForm.appointment_time) {
+    if (!bookingForm.appointment_date || !bookingForm.appointment_time) {
       alert("Please fill in all required fields");
       return;
     }
@@ -246,21 +217,13 @@ export default function Appointments() {
 
       const newAppointment = {
         patient_id: currentUser.id,
-        patient_name: profile?.full_name || "Patient",
         doctor_id: doctorId,
-        clinic_name: bookingForm.clinic_name,
+        clinic_id: null,
         appointment_date: toAppointmentTimestamp(bookingForm.appointment_date, bookingForm.appointment_time),
-        location: bookingForm.location || null,
-        address: bookingForm.address || null,
-        phone: bookingForm.phone || null,
-        reason: bookingForm.reason || null,
-        notes: [bookingForm.notes, bookingForm.appointment_time ? `Time: ${bookingForm.appointment_time}` : ""]
-          .filter(Boolean)
-          .join(" | ") || null,
-        status: "scheduled"
+        status: "pending"
       };
 
-      const data = await insertAppointmentSchemaSafe(newAppointment);
+      const data = await insertAppointment(newAppointment);
 
       setAppointments((prev) => [data, ...prev]);
       setBookingForm({
@@ -286,7 +249,8 @@ export default function Appointments() {
 
   const filteredAppointments = appointments.filter((apt) => {
     if (filter === "all") return true;
-    return apt.status === filter;
+    if (filter === "upcoming") return isUpcomingStatus(apt.status);
+    return String(apt.status || "").toLowerCase() === filter;
   });
 
   const handleCancelAppointment = async (appointmentId) => {
@@ -411,14 +375,14 @@ export default function Appointments() {
           <button className={`filter-btn ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>
             All ({appointments.length})
           </button>
-          <button className={`filter-btn ${filter === "scheduled" ? "active" : ""}`} onClick={() => setFilter("scheduled")}>
-            Upcoming ({appointments.filter((a) => a.status === "scheduled").length})
+          <button className={`filter-btn ${filter === "upcoming" ? "active" : ""}`} onClick={() => setFilter("upcoming")}>
+            Upcoming ({appointments.filter((a) => isUpcomingStatus(a.status)).length})
           </button>
           <button className={`filter-btn ${filter === "completed" ? "active" : ""}`} onClick={() => setFilter("completed")}>
-            Completed ({appointments.filter((a) => a.status === "completed").length})
+            Completed ({appointments.filter((a) => String(a.status || "").toLowerCase() === "completed").length})
           </button>
           <button className={`filter-btn ${filter === "cancelled" ? "active" : ""}`} onClick={() => setFilter("cancelled")}>
-            Cancelled ({appointments.filter((a) => a.status === "cancelled").length})
+            Cancelled ({appointments.filter((a) => String(a.status || "").toLowerCase() === "cancelled").length})
           </button>
         </div>
 
@@ -442,7 +406,9 @@ export default function Appointments() {
               )}
             </div>
           ) : (
-            filteredAppointments.map((appointment) => (
+            filteredAppointments.map((appointment) => {
+              const normalizedStatus = String(appointment.status || "pending").toLowerCase();
+              return (
               <div key={appointment.id} className="appointment-card">
                 <div className="appointment-header">
                   <div className="appointment-header-content">
@@ -451,35 +417,35 @@ export default function Appointments() {
                       className="appointment-badge"
                       style={{
                         background:
-                          appointment.status === "scheduled"
+                          normalizedStatus === "scheduled" || normalizedStatus === "pending" || normalizedStatus === "confirmed"
                             ? "#dbeafe"
-                            : appointment.status === "completed"
+                            : normalizedStatus === "completed"
                               ? "#d1fae5"
-                              : appointment.status === "cancelled"
+                              : normalizedStatus === "cancelled"
                                 ? "#fee2e2"
                                 : "#f3f4f6",
                         color:
-                          appointment.status === "scheduled"
+                          normalizedStatus === "scheduled" || normalizedStatus === "pending" || normalizedStatus === "confirmed"
                             ? "#1e40af"
-                            : appointment.status === "completed"
+                            : normalizedStatus === "completed"
                               ? "#065f46"
-                              : appointment.status === "cancelled"
+                              : normalizedStatus === "cancelled"
                                 ? "#991b1b"
                                 : "#374151",
                         borderColor:
-                          appointment.status === "scheduled"
+                          normalizedStatus === "scheduled" || normalizedStatus === "pending" || normalizedStatus === "confirmed"
                             ? "#bfdbfe"
-                            : appointment.status === "completed"
+                            : normalizedStatus === "completed"
                               ? "#a7f3d0"
-                              : appointment.status === "cancelled"
+                              : normalizedStatus === "cancelled"
                                 ? "#fecaca"
                                 : "#d1d5db"
                       }}
                     >
-                      {String(appointment.status || "scheduled").charAt(0).toUpperCase() + String(appointment.status || "scheduled").slice(1)}
+                      {statusLabel(normalizedStatus)}
                     </span>
                   </div>
-                  {appointment.status === "scheduled" && (
+                  {isUpcomingStatus(normalizedStatus) && (
                     <button onClick={() => handleCancelAppointment(appointment.id)} className="cancel-btn" title="Cancel appointment">
                       <X className="cancel-icon" />
                     </button>
@@ -520,7 +486,7 @@ export default function Appointments() {
                     </div>
                   )}
 
-                  {isDoctor && appointment.status === "scheduled" && (
+                  {isDoctor && isUpcomingStatus(normalizedStatus) && (
                     <div className="appointment-actions">
                       <button onClick={() => handleCompleteAppointment(appointment.id)} className="complete-btn">
                         <CheckCircle className="complete-icon" />
@@ -530,7 +496,7 @@ export default function Appointments() {
                   )}
                 </div>
               </div>
-            ))
+            )})
           )}
         </div>
       </div>
