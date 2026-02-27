@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Calendar, MapPin, Clock, User, X, CheckCircle, AlertTriangle, Plus, Phone, Star } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLocation } from "react-router-dom";
 import { clinicsData } from "../../data/clinics";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function Appointments() {
   const location = useLocation();
-  const { currentUser, userProfile, isDoctor, isPatient } = useAuth();
-  
+  const { currentUser, profile, isDoctor, isPatient } = useAuth();
+
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,8 +32,8 @@ export default function Appointments() {
   const isBooking = location.state?.isBooking;
 
   useEffect(() => {
-    if (isBooking && incomingClinic) {
-      const clinic = clinicsData.find(c => c.name === incomingClinic.name);
+    if (isBooking && incomingClinic && isPatient) {
+      const clinic = clinicsData.find((c) => c.name === incomingClinic.name);
       if (clinic) {
         setSelectedClinic(clinic);
         setBookingForm({
@@ -49,82 +50,111 @@ export default function Appointments() {
       }
       setShowBookingModal(true);
     }
-  }, [isBooking, incomingClinic]);
+  }, [isBooking, incomingClinic, isPatient]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchAppointments() {
-      if (!currentUser) {
-        setError("Please log in to view appointments");
-        setLoading(false);
+      if (!currentUser?.id) {
+        if (!cancelled) {
+          setError("Please log in to view appointments");
+          setLoading(false);
+        }
         return;
       }
 
       try {
         setLoading(true);
-        const appointmentsRef = collection(db, "appointments");
-        
-        let q;
+        setError(null);
+
+        let query = supabase.from("appointments").select("*");
+
         if (isPatient) {
-          q = query(appointmentsRef, where("user_id", "==", currentUser.uid));
+          query = query.eq("patient_id", currentUser.id);
         } else if (isDoctor) {
-          q = query(appointmentsRef, where("doctor_id", "==", currentUser.uid));
+          query = query.eq("doctor_id", currentUser.id);
         }
 
-        const querySnapshot = await getDocs(q);
-        
-        const appointmentsData = [];
-        querySnapshot.forEach((doc) => {
-          appointmentsData.push({ id: doc.id, ...doc.data() });
-        });
-        
-        appointmentsData.sort((a, b) => {
-          const dateA = new Date(a.appointment_date || 0);
-          const dateB = new Date(b.appointment_date || 0);
-          return dateB - dateA;
-        });
-        
-        setAppointments(appointmentsData);
-        setError(null);
+        const { data, error: fetchError } = await query
+          .order("appointment_date", { ascending: false, nullsFirst: false })
+          .order("appointment_time", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false });
+
+        if (fetchError) throw fetchError;
+
+        if (!cancelled) {
+          setAppointments(data || []);
+        }
       } catch (err) {
         console.error("Error fetching appointments:", err);
-        setError("Unable to load appointments. Please try again.");
+        if (!cancelled) setError(err?.message || "Unable to load appointments. Please try again.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchAppointments();
-  }, [currentUser, isPatient, isDoctor]);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, isPatient, isDoctor]);
 
   const handleClinicSelect = (e) => {
     const clinicId = e.target.value;
-    const clinic = clinicsData.find(c => c.id === parseInt(clinicId));
-    
+    const clinic = clinicsData.find((c) => c.id === parseInt(clinicId, 10));
+
     if (clinic) {
       setSelectedClinic(clinic);
-      setBookingForm({
-        ...bookingForm,
+      setBookingForm((prev) => ({
+        ...prev,
         clinic_id: clinic.id,
         clinic_name: clinic.name,
         location: clinic.location,
         address: clinic.address,
         phone: clinic.phone
-      });
+      }));
     } else {
       setSelectedClinic(null);
-      setBookingForm({
-        ...bookingForm,
+      setBookingForm((prev) => ({
+        ...prev,
         clinic_id: "",
         clinic_name: "",
         location: "",
         address: "",
         phone: ""
-      });
+      }));
     }
   };
 
+  async function resolveDoctorIdForPatient() {
+    if (!currentUser?.id) return null;
+
+    const { data: relation } = await supabase
+      .from("doctor_patient")
+      .select("doctor_id")
+      .eq("patient_id", currentUser.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (relation?.doctor_id) return relation.doctor_id;
+
+    const { data: patientProfile } = await supabase
+      .from("profiles")
+      .select("selected_doctor_id")
+      .eq("id", currentUser.id)
+      .maybeSingle();
+
+    return patientProfile?.selected_doctor_id || null;
+  }
+
   const handleBookAppointment = async (e) => {
     e.preventDefault();
+
+    if (!currentUser?.id || !isPatient) {
+      alert("Only patient accounts can book appointments.");
+      return;
+    }
 
     if (!bookingForm.clinic_name || !bookingForm.appointment_date || !bookingForm.appointment_time) {
       alert("Please fill in all required fields");
@@ -132,40 +162,32 @@ export default function Appointments() {
     }
 
     try {
-      let doctorId = null;
-      if (isPatient) {
-        const assignmentsRef = collection(db, "doctor_patients");
-        const assignmentQuery = query(
-          assignmentsRef,
-          where("patient_id", "==", currentUser.uid),
-          where("status", "==", "active")
-        );
-        const assignmentSnapshot = await getDocs(assignmentQuery);
-        if (!assignmentSnapshot.empty) {
-          doctorId = assignmentSnapshot.docs[0].data().doctor_id;
-        }
-      }
+      const doctorId = await resolveDoctorIdForPatient();
 
       const newAppointment = {
-        user_id: currentUser.uid,
-        patient_name: userProfile?.full_name || currentUser.displayName,
+        patient_id: currentUser.id,
+        patient_name: profile?.full_name || "Patient",
         doctor_id: doctorId,
         clinic_name: bookingForm.clinic_name,
         appointment_date: bookingForm.appointment_date,
         appointment_time: bookingForm.appointment_time,
-        location: bookingForm.location,
-        address: bookingForm.address,
-        phone: bookingForm.phone,
-        reason: bookingForm.reason,
-        notes: bookingForm.notes,
-        status: "scheduled",
-        created_at: new Date().toISOString()
+        location: bookingForm.location || null,
+        address: bookingForm.address || null,
+        phone: bookingForm.phone || null,
+        reason: bookingForm.reason || null,
+        notes: bookingForm.notes || null,
+        status: "scheduled"
       };
 
-      const docRef = await addDoc(collection(db, "appointments"), newAppointment);
-      
-      setAppointments([{ id: docRef.id, ...newAppointment }, ...appointments]);
-      
+      const { data, error: insertError } = await supabase
+        .from("appointments")
+        .insert(newAppointment)
+        .select("*")
+        .single();
+
+      if (insertError) throw insertError;
+
+      setAppointments((prev) => [data, ...prev]);
       setBookingForm({
         clinic_id: "",
         clinic_name: "",
@@ -179,11 +201,11 @@ export default function Appointments() {
       });
       setSelectedClinic(null);
       setShowBookingModal(false);
-      
+
       alert("Appointment booked successfully!");
     } catch (err) {
       console.error("Error booking appointment:", err);
-      alert("Failed to book appointment. Please try again.");
+      alert(err?.message || "Failed to book appointment. Please try again.");
     }
   };
 
@@ -193,22 +215,21 @@ export default function Appointments() {
   });
 
   const handleCancelAppointment = async (appointmentId) => {
-    if (!confirm("Are you sure you want to cancel this appointment?")) return;
+    if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
 
     try {
-      await updateDoc(doc(db, "appointments", appointmentId), {
-        status: "cancelled",
-        cancelled_at: new Date().toISOString()
-      });
-      
-      setAppointments(appointments.map(apt => 
-        apt.id === appointmentId ? { ...apt, status: "cancelled" } : apt
-      ));
-      
+      const { error: updateError } = await supabase
+        .from("appointments")
+        .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+        .eq("id", appointmentId);
+
+      if (updateError) throw updateError;
+
+      setAppointments((prev) => prev.map((apt) => (apt.id === appointmentId ? { ...apt, status: "cancelled" } : apt)));
       alert("Appointment cancelled successfully");
     } catch (err) {
       console.error("Error cancelling appointment:", err);
-      alert("Failed to cancel appointment. Please try again.");
+      alert(err?.message || "Failed to cancel appointment. Please try again.");
     }
   };
 
@@ -216,19 +237,19 @@ export default function Appointments() {
     if (!isDoctor) return;
 
     try {
-      await updateDoc(doc(db, "appointments", appointmentId), {
-        status: "completed",
-        completed_at: new Date().toISOString()
-      });
-      
-      setAppointments(appointments.map(apt => 
-        apt.id === appointmentId ? { ...apt, status: "completed" } : apt
-      ));
-      
+      const { error: updateError } = await supabase
+        .from("appointments")
+        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .eq("id", appointmentId)
+        .eq("doctor_id", currentUser.id);
+
+      if (updateError) throw updateError;
+
+      setAppointments((prev) => prev.map((apt) => (apt.id === appointmentId ? { ...apt, status: "completed" } : apt)));
       alert("Appointment marked as completed");
     } catch (err) {
       console.error("Error completing appointment:", err);
-      alert("Failed to complete appointment. Please try again.");
+      alert(err?.message || "Failed to complete appointment. Please try again.");
     }
   };
 
@@ -239,13 +260,13 @@ export default function Appointments() {
       weekday: "short",
       year: "numeric",
       month: "short",
-      day: "numeric",
+      day: "numeric"
     });
   };
 
   const getMinDate = () => {
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    return today.toISOString().split("T")[0];
   };
 
   if (loading) {
@@ -298,9 +319,9 @@ export default function Appointments() {
               {isDoctor ? "Patient Appointments" : "My Appointments"}
             </h1>
             <p className="appointments-subtitle">
-              {isDoctor 
-                ? `Managing ${appointments.length} appointment${appointments.length !== 1 ? 's' : ''}` 
-                : `You have ${appointments.length} appointment${appointments.length !== 1 ? 's' : ''}`}
+              {isDoctor
+                ? `Managing ${appointments.length} appointment${appointments.length !== 1 ? "s" : ""}`
+                : `You have ${appointments.length} appointment${appointments.length !== 1 ? "s" : ""}`}
             </p>
           </div>
           {isPatient && (
@@ -316,13 +337,13 @@ export default function Appointments() {
             All ({appointments.length})
           </button>
           <button className={`filter-btn ${filter === "scheduled" ? "active" : ""}`} onClick={() => setFilter("scheduled")}>
-            Upcoming ({appointments.filter(a => a.status === "scheduled").length})
+            Upcoming ({appointments.filter((a) => a.status === "scheduled").length})
           </button>
           <button className={`filter-btn ${filter === "completed" ? "active" : ""}`} onClick={() => setFilter("completed")}>
-            Completed ({appointments.filter(a => a.status === "completed").length})
+            Completed ({appointments.filter((a) => a.status === "completed").length})
           </button>
           <button className={`filter-btn ${filter === "cancelled" ? "active" : ""}`} onClick={() => setFilter("cancelled")}>
-            Cancelled ({appointments.filter(a => a.status === "cancelled").length})
+            Cancelled ({appointments.filter((a) => a.status === "cancelled").length})
           </button>
         </div>
 
@@ -330,14 +351,12 @@ export default function Appointments() {
           {filteredAppointments.length === 0 ? (
             <div className="empty-state">
               <Calendar className="empty-icon" />
-              <p className="empty-title">
-                {filter === "all" ? "No Appointments Yet" : `No ${filter} appointments`}
-              </p>
+              <p className="empty-title">{filter === "all" ? "No Appointments Yet" : `No ${filter} appointments`}</p>
               <p className="empty-text">
-                {filter === "all" 
-                  ? (isDoctor 
-                      ? "You don't have any appointments scheduled with your patients yet." 
-                      : "You haven't booked any appointments yet.")
+                {filter === "all"
+                  ? isDoctor
+                    ? "You don't have any appointments scheduled with your patients yet."
+                    : "You haven't booked any appointments yet."
                   : "Try changing the filter to see other appointments."}
               </p>
               {isPatient && filter === "all" && (
@@ -353,24 +372,36 @@ export default function Appointments() {
                 <div className="appointment-header">
                   <div className="appointment-header-content">
                     <h2 className="appointment-clinic">{appointment.clinic_name}</h2>
-                    <span 
-                      className="appointment-badge" 
+                    <span
+                      className="appointment-badge"
                       style={{
-                        background: 
-                          appointment.status === "scheduled" ? "#dbeafe" :
-                          appointment.status === "completed" ? "#d1fae5" :
-                          appointment.status === "cancelled" ? "#fee2e2" : "#f3f4f6",
-                        color: 
-                          appointment.status === "scheduled" ? "#1e40af" :
-                          appointment.status === "completed" ? "#065f46" :
-                          appointment.status === "cancelled" ? "#991b1b" : "#374151",
-                        borderColor: 
-                          appointment.status === "scheduled" ? "#bfdbfe" :
-                          appointment.status === "completed" ? "#a7f3d0" :
-                          appointment.status === "cancelled" ? "#fecaca" : "#d1d5db"
+                        background:
+                          appointment.status === "scheduled"
+                            ? "#dbeafe"
+                            : appointment.status === "completed"
+                              ? "#d1fae5"
+                              : appointment.status === "cancelled"
+                                ? "#fee2e2"
+                                : "#f3f4f6",
+                        color:
+                          appointment.status === "scheduled"
+                            ? "#1e40af"
+                            : appointment.status === "completed"
+                              ? "#065f46"
+                              : appointment.status === "cancelled"
+                                ? "#991b1b"
+                                : "#374151",
+                        borderColor:
+                          appointment.status === "scheduled"
+                            ? "#bfdbfe"
+                            : appointment.status === "completed"
+                              ? "#a7f3d0"
+                              : appointment.status === "cancelled"
+                                ? "#fecaca"
+                                : "#d1d5db"
                       }}
                     >
-                      {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                      {String(appointment.status || "scheduled").charAt(0).toUpperCase() + String(appointment.status || "scheduled").slice(1)}
                     </span>
                   </div>
                   {appointment.status === "scheduled" && (
@@ -429,7 +460,7 @@ export default function Appointments() {
         </div>
       </div>
 
-      {showBookingModal && (
+      {showBookingModal && isPatient && (
         <div className="modal-overlay" onClick={() => setShowBookingModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -439,19 +470,12 @@ export default function Appointments() {
 
             <form onSubmit={handleBookAppointment} className="modal-body">
               <div className="form-content">
-                {/* CLINIC DROPDOWN */}
                 <div className="form-field">
                   <label htmlFor="clinic_select" className="form-label">
                     <MapPin className="form-label-icon" />
                     Select Clinic *
                   </label>
-                  <select
-                    id="clinic_select"
-                    value={bookingForm.clinic_id}
-                    onChange={handleClinicSelect}
-                    className="form-input"
-                    required
-                  >
+                  <select id="clinic_select" value={bookingForm.clinic_id} onChange={handleClinicSelect} className="form-input" required>
                     <option value="">-- Choose a clinic --</option>
                     {clinicsData.map((clinic) => (
                       <option key={clinic.id} value={clinic.id}>
@@ -461,7 +485,6 @@ export default function Appointments() {
                   </select>
                 </div>
 
-                {/* CLINIC DETAILS */}
                 {selectedClinic && (
                   <div className="clinic-details-box">
                     <div className="clinic-detail-row">
@@ -483,7 +506,6 @@ export default function Appointments() {
                   </div>
                 )}
 
-                {/* TIME SLOTS */}
                 {selectedClinic && selectedClinic.available_slots && (
                   <div className="form-field">
                     <label className="form-label">
@@ -497,11 +519,11 @@ export default function Appointments() {
                           type="button"
                           className={`time-slot-btn ${bookingForm.appointment_time === slot ? "selected" : ""}`}
                           onClick={() => {
-                            setBookingForm({
-                              ...bookingForm,
+                            setBookingForm((prev) => ({
+                              ...prev,
                               appointment_time: slot,
-                              appointment_date: new Date().toISOString().split('T')[0]
-                            });
+                              appointment_date: new Date().toISOString().split("T")[0]
+                            }));
                           }}
                         >
                           {slot}
@@ -522,7 +544,7 @@ export default function Appointments() {
                       type="date"
                       min={getMinDate()}
                       value={bookingForm.appointment_date}
-                      onChange={(e) => setBookingForm({...bookingForm, appointment_date: e.target.value})}
+                      onChange={(e) => setBookingForm((prev) => ({ ...prev, appointment_date: e.target.value }))}
                       className="form-input"
                       required
                     />
@@ -537,7 +559,7 @@ export default function Appointments() {
                       id="appointment_time"
                       type="time"
                       value={bookingForm.appointment_time}
-                      onChange={(e) => setBookingForm({...bookingForm, appointment_time: e.target.value})}
+                      onChange={(e) => setBookingForm((prev) => ({ ...prev, appointment_time: e.target.value }))}
                       className="form-input"
                       required
                     />
@@ -553,7 +575,7 @@ export default function Appointments() {
                     id="reason"
                     type="text"
                     value={bookingForm.reason}
-                    onChange={(e) => setBookingForm({...bookingForm, reason: e.target.value})}
+                    onChange={(e) => setBookingForm((prev) => ({ ...prev, reason: e.target.value }))}
                     className="form-input"
                     placeholder="e.g., Annual checkup, Follow-up"
                   />
@@ -566,7 +588,7 @@ export default function Appointments() {
                   <textarea
                     id="notes"
                     value={bookingForm.notes}
-                    onChange={(e) => setBookingForm({...bookingForm, notes: e.target.value})}
+                    onChange={(e) => setBookingForm((prev) => ({ ...prev, notes: e.target.value }))}
                     className="form-input form-textarea"
                     placeholder="Any additional information..."
                     rows="3"

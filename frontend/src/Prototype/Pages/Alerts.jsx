@@ -1,112 +1,134 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCircle, AlertTriangle, Info, ExternalLink } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function Alerts() {
-  const { currentUser } = useAuth();
+  const { currentUser, isPatient } = useAuth();
+
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filter, setFilter] = useState("all"); // all, unread, read, high, moderate
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
-    fetchAlerts();
-  }, [currentUser]);
+    let cancelled = false;
 
-  async function fetchAlerts() {
-    if (!currentUser) {
-      setError("Please log in to view alerts");
-      setLoading(false);
+    async function fetchAlerts() {
+      if (!currentUser?.id) {
+        if (!cancelled) {
+          setError("Please log in to view alerts");
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (!isPatient) {
+        if (!cancelled) {
+          setError("Alerts are available for patient accounts only.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+
+        const { data, error: fetchError } = await supabase
+          .from("risk_alerts")
+          .select("*")
+          .eq("patient_id", currentUser.id)
+          .order("created_at", { ascending: false });
+
+        if (fetchError) throw fetchError;
+
+        if (!cancelled) {
+          const normalized = (data || []).map((item) => ({
+            ...item,
+            title: item.title || item.alert_type || "Risk Alert",
+            message: item.message || item.description || item.notes || "Health-related alert",
+            priority: (item.priority || "moderate").toLowerCase(),
+            is_read: typeof item.is_read === "boolean" ? item.is_read : false
+          }));
+          setAlerts(normalized);
+        }
+      } catch (err) {
+        console.error("Error fetching alerts:", err);
+        if (!cancelled) setError(err?.message || "Unable to load alerts");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchAlerts();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, isPatient]);
+
+  const supportsReadState = useMemo(() => alerts.some((a) => Object.prototype.hasOwnProperty.call(a, "is_read")), [alerts]);
+
+  async function handleMarkAsRead(alertId) {
+    if (!supportsReadState) return;
+
+    const { error: updateError } = await supabase
+      .from("risk_alerts")
+      .update({ is_read: true })
+      .eq("id", alertId)
+      .eq("patient_id", currentUser.id);
+
+    if (updateError) {
+      console.error("Error marking alert as read:", updateError);
+      alert("This alert cannot be marked as read with current schema.");
       return;
     }
 
-    try {
-      setLoading(true);
-      const alertsRef = collection(db, "alerts");
-      const q = query(alertsRef, where("user_id", "==", currentUser.uid));
-      const querySnapshot = await getDocs(q);
-
-      const alertsData = [];
-      querySnapshot.forEach((doc) => {
-        alertsData.push({ id: doc.id, ...doc.data() });
-      });
-
-      // Sort by date (newest first)
-      alertsData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setAlerts(alertsData);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching alerts:", err);
-      setError("Unable to load alerts");
-    } finally {
-      setLoading(false);
-    }
+    setAlerts((prev) => prev.map((a) => (a.id === alertId ? { ...a, is_read: true } : a)));
   }
 
-  const handleMarkAsRead = async (alertId) => {
-    try {
-      await updateDoc(doc(db, "alerts", alertId), {
-        is_read: true,
-        read_at: new Date().toISOString()
-      });
-      
-      setAlerts(alerts.map(alert => 
-        alert.id === alertId ? { ...alert, is_read: true } : alert
-      ));
-    } catch (err) {
-      console.error("Error marking alert as read:", err);
-      alert("Failed to mark as read");
-    }
-  };
+  async function handleMarkAllAsRead() {
+    if (!supportsReadState) return;
 
-  const handleMarkAllAsRead = async () => {
-    try {
-      const unreadAlerts = alerts.filter(a => !a.is_read);
-      
-      for (const alert of unreadAlerts) {
-        await updateDoc(doc(db, "alerts", alert.id), {
-          is_read: true,
-          read_at: new Date().toISOString()
-        });
-      }
-      
-      setAlerts(alerts.map(alert => ({ ...alert, is_read: true })));
-    } catch (err) {
-      console.error("Error marking all as read:", err);
-      alert("Failed to mark all as read");
-    }
-  };
+    const unreadIds = alerts.filter((a) => !a.is_read).map((a) => a.id);
+    if (unreadIds.length === 0) return;
 
-  const formatDate = (dateString) => {
+    const { error: updateError } = await supabase
+      .from("risk_alerts")
+      .update({ is_read: true })
+      .in("id", unreadIds)
+      .eq("patient_id", currentUser.id);
+
+    if (updateError) {
+      console.error("Error marking all alerts as read:", updateError);
+      alert("This alert list cannot be marked as read with current schema.");
+      return;
+    }
+
+    setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true })));
+  }
+
+  function formatDate(dateString) {
+    if (!dateString) return "Date unavailable";
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    }) + ' · ' + date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      hour12: true 
-    });
-  };
+    if (Number.isNaN(date.getTime())) return "Date unavailable";
+    return (
+      date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
+      " · " +
+      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    );
+  }
 
-  const getFilteredAlerts = () => {
-    switch (filter) {
-      case "unread":
-        return alerts.filter(a => !a.is_read);
-      case "read":
-        return alerts.filter(a => a.is_read);
-      case "high":
-        return alerts.filter(a => a.priority === "high");
-      case "moderate":
-        return alerts.filter(a => a.priority === "moderate");
-      default:
-        return alerts;
-    }
-  };
+  const unreadCount = alerts.filter((a) => !a.is_read).length;
 
-  const filteredAlerts = getFilteredAlerts();
-  const unreadCount = alerts.filter(a => !a.is_read).length;
+  const filteredAlerts = useMemo(() => {
+    if (filter === "all") return alerts;
+    if (filter === "unread") return alerts.filter((a) => !a.is_read);
+    if (filter === "read") return alerts.filter((a) => a.is_read);
+    if (filter === "high") return alerts.filter((a) => a.priority === "high");
+    if (filter === "moderate") return alerts.filter((a) => a.priority === "moderate");
+    return alerts;
+  }, [alerts, filter]);
 
   if (loading) {
     return (
@@ -146,7 +168,6 @@ export default function Alerts() {
   return (
     <div className="alerts-page">
       <div className="alerts-container">
-        {/* Header */}
         <div className="alerts-header">
           <div>
             <h1 className="alerts-title">
@@ -154,10 +175,10 @@ export default function Alerts() {
               Medical Alerts
             </h1>
             <p className="alerts-subtitle">
-              {unreadCount} unread reminder{unreadCount !== 1 ? 's' : ''}
+              {supportsReadState ? `${unreadCount} unread reminder${unreadCount !== 1 ? "s" : ""}` : `${alerts.length} alert${alerts.length !== 1 ? "s" : ""}`}
             </p>
           </div>
-          {unreadCount > 0 && (
+          {supportsReadState && unreadCount > 0 && (
             <button onClick={handleMarkAllAsRead} className="mark-all-btn">
               <CheckCircle className="btn-icon" />
               Mark All as Read
@@ -165,59 +186,38 @@ export default function Alerts() {
           )}
         </div>
 
-        {/* Filter Tabs */}
         <div className="alerts-filters">
-          <button
-            onClick={() => setFilter("all")}
-            className={`filter-tab ${filter === "all" ? "active" : ""}`}
-          >
+          <button onClick={() => setFilter("all")} className={`filter-tab ${filter === "all" ? "active" : ""}`}>
             All Alerts
           </button>
-          <button
-            onClick={() => setFilter("unread")}
-            className={`filter-tab ${filter === "unread" ? "active" : ""}`}
-          >
-            Unread
-          </button>
-          <button
-            onClick={() => setFilter("read")}
-            className={`filter-tab ${filter === "read" ? "active" : ""}`}
-          >
-            Read
-          </button>
-          <button
-            onClick={() => setFilter("high")}
-            className={`filter-tab ${filter === "high" ? "active" : ""}`}
-          >
+          {supportsReadState && (
+            <>
+              <button onClick={() => setFilter("unread")} className={`filter-tab ${filter === "unread" ? "active" : ""}`}>
+                Unread
+              </button>
+              <button onClick={() => setFilter("read")} className={`filter-tab ${filter === "read" ? "active" : ""}`}>
+                Read
+              </button>
+            </>
+          )}
+          <button onClick={() => setFilter("high")} className={`filter-tab ${filter === "high" ? "active" : ""}`}>
             High Risk
           </button>
-          <button
-            onClick={() => setFilter("moderate")}
-            className={`filter-tab ${filter === "moderate" ? "active" : ""}`}
-          >
+          <button onClick={() => setFilter("moderate")} className={`filter-tab ${filter === "moderate" ? "active" : ""}`}>
             Moderate
           </button>
         </div>
 
-        {/* Alerts List */}
         {filteredAlerts.length === 0 ? (
           <div className="empty-state">
             <Bell className="empty-icon" />
             <p className="empty-title">No Alerts</p>
-            <p className="empty-text">
-              {filter === "all" 
-                ? "You're all caught up! No alerts at this time."
-                : `No ${filter} alerts found.`}
-            </p>
+            <p className="empty-text">{filter === "all" ? "You're all caught up." : `No ${filter} alerts found.`}</p>
           </div>
         ) : (
           <div className="alerts-list">
             {filteredAlerts.map((alertItem) => (
-              <div 
-                key={alertItem.id} 
-                className={`alert-card ${!alertItem.is_read ? "unread" : ""}`}
-              >
-                {/* Alert Header */}
+              <div key={alertItem.id} className={`alert-card ${!alertItem.is_read ? "unread" : ""}`}>
                 <div className="alert-card-header">
                   <div className="alert-icon-wrapper">
                     <Info className="alert-icon" />
@@ -225,19 +225,15 @@ export default function Alerts() {
                   <div className="alert-header-content">
                     <div className="alert-title-row">
                       <h3 className="alert-title">{alertItem.title}</h3>
-                      {!alertItem.is_read && (
-                        <span className="new-badge">New</span>
-                      )}
+                      {supportsReadState && !alertItem.is_read && <span className="new-badge">New</span>}
                     </div>
                     <p className="alert-date">{formatDate(alertItem.created_at)}</p>
                   </div>
                 </div>
 
-                {/* Alert Body */}
                 <div className="alert-card-body">
                   <p className="alert-message">{alertItem.message}</p>
 
-                  {/* Recommendation Box */}
                   {alertItem.recommendation && (
                     <div className="recommendation-box">
                       <strong>Recommendation:</strong>
@@ -245,21 +241,14 @@ export default function Alerts() {
                     </div>
                   )}
 
-                  {/* Actions */}
                   <div className="alert-actions">
-                    {!alertItem.is_read && (
-                      <button
-                        onClick={() => handleMarkAsRead(alertItem.id)}
-                        className="mark-read-btn"
-                      >
+                    {supportsReadState && !alertItem.is_read && (
+                      <button onClick={() => handleMarkAsRead(alertItem.id)} className="mark-read-btn" type="button">
                         Mark as Read
                       </button>
                     )}
                     {alertItem.link && (
-                      <button
-                        onClick={() => window.open(alertItem.link, '_blank')}
-                        className="learn-more-btn"
-                      >
+                      <button onClick={() => window.open(alertItem.link, "_blank")} className="learn-more-btn" type="button">
                         <ExternalLink size={16} />
                         Learn More
                       </button>

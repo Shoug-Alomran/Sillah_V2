@@ -1,13 +1,5 @@
-// frontend/src/Prototype/Pages/RiskAssessment.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  Heart,
-  Users,
-  Info,
-  ArrowRight,
-  TrendingUp,
-} from "lucide-react";
+import { AlertTriangle, Heart, Users, Info, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
@@ -17,23 +9,27 @@ export default function RiskAssessment() {
   const { currentUser, isPatient } = useAuth();
 
   const [members, setMembers] = useState([]);
+  const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ✅ Fetch family members from Supabase (NOT Firestore)
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchFamilyMembers() {
-      if (!currentUser) {
-        setError("Please log in to view risk assessment");
-        setLoading(false);
+    async function fetchData() {
+      if (!currentUser?.id) {
+        if (!cancelled) {
+          setError("Please log in to view risk assessment");
+          setLoading(false);
+        }
         return;
       }
 
       if (!isPatient) {
-        setError("Only patients can view risk assessment");
-        setLoading(false);
+        if (!cancelled) {
+          setError("Only patients can view risk assessment");
+          setLoading(false);
+        }
         return;
       }
 
@@ -41,179 +37,121 @@ export default function RiskAssessment() {
         setLoading(true);
         setError(null);
 
-        // Assumes you have a table: public.family_members
-        // with columns:
-        // id, user_id, name, relationship, age, health_status, medical_notes, diagnosis_age, created_at
-        const { data, error } = await supabase
+        const { data: familyMembers, error: famErr } = await supabase
           .from("family_members")
-          .select(
-            "id, user_id, name, relationship, age, health_status, medical_notes, diagnosis_age, created_at"
-          )
+          .select("id, full_name, relationship, date_of_birth")
           .eq("user_id", currentUser.id)
           .order("created_at", { ascending: false });
 
-        if (error) throw error;
+        if (famErr) throw famErr;
 
-        if (!cancelled) setMembers(data || []);
+        const memberIds = (familyMembers || []).map((m) => m.id);
+
+        let history = [];
+        if (memberIds.length > 0) {
+          const { data: med, error: medErr } = await supabase
+            .from("medical_history")
+            .select("id, family_member_id, condition_name, diagnosis_date, notes")
+            .in("family_member_id", memberIds)
+            .order("diagnosis_date", { ascending: false, nullsFirst: false });
+
+          if (medErr) throw medErr;
+          history = med || [];
+        }
+
+        if (!cancelled) {
+          setMembers(familyMembers || []);
+          setRecords(history);
+        }
       } catch (err) {
-        console.error("Error fetching family members:", err);
-        if (!cancelled)
-          setError(err?.message || "Unable to load family data. Please try again.");
+        console.error("Error fetching risk assessment data:", err);
+        if (!cancelled) setError(err?.message || "Unable to load family data. Please try again.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
-    fetchFamilyMembers();
+    fetchData();
     return () => {
       cancelled = true;
     };
-  }, [currentUser, isPatient]);
+  }, [currentUser?.id, isPatient]);
 
-  // Helper functions
-  const hasSCD = (member) => {
-    const healthStatus = (member.health_status || "").toLowerCase();
-    const medicalNotes = (member.medical_notes || "").toLowerCase();
+  const sickleRecords = useMemo(() => {
+    return records.filter((r) => {
+      const text = `${r.condition_name || ""} ${r.notes || ""}`.toLowerCase();
+      return text.includes("sickle") || text.includes("scd");
+    });
+  }, [records]);
 
-    return (
-      healthStatus === "diagnosed" ||
-      healthStatus.includes("scd") ||
-      healthStatus.includes("sickle cell") ||
-      medicalNotes.includes("scd") ||
-      medicalNotes.includes("sickle cell")
-    );
-  };
+  const hereditaryRecords = useMemo(() => {
+    return records.filter((r) => {
+      const text = `${r.condition_name || ""} ${r.notes || ""}`.toLowerCase();
+      return text.includes("heredit") || text.includes("genetic") || text.includes("family history");
+    });
+  }, [records]);
 
-  const isAtRisk = (member) => {
-    const healthStatus = (member.health_status || "").toLowerCase();
-    return healthStatus === "at_risk" || healthStatus === "at risk";
-  };
+  const diagnosedMembers = useMemo(() => {
+    return new Set(sickleRecords.map((r) => r.family_member_id)).size;
+  }, [sickleRecords]);
 
-  const isHealthy = (member) => {
-    const healthStatus = (member.health_status || "").toLowerCase();
-    return healthStatus === "healthy" || healthStatus === "no condition";
-  };
-
-  const getDiagnosisAge = (member) => {
-    const v = member.diagnosis_age;
-    if (v === null || v === undefined) return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  };
-
-  // Derived sets
-  const scdMembers = useMemo(() => members.filter((m) => hasSCD(m)), [members]);
-  const earlyOnsetMembers = useMemo(
-    () =>
-      scdMembers.filter((m) => {
-        const age = getDiagnosisAge(m);
-        return age !== null && age < 50;
-      }),
-    [scdMembers]
-  );
-  const atRiskMembers = useMemo(() => members.filter((m) => isAtRisk(m)), [members]);
-  const healthyMembers = useMemo(() => members.filter((m) => isHealthy(m)), [members]);
-
-  // Risk level
   const risk = useMemo(() => {
-    const earlyOnsetCount = earlyOnsetMembers.length;
-    const scdCount = scdMembers.length;
-    const atRiskCount = atRiskMembers.length;
-
-    if (scdCount >= 2 || earlyOnsetCount >= 1) {
+    if (diagnosedMembers >= 2 || sickleRecords.length >= 3) {
       return {
         level: "High Risk",
         color: "red",
-        message: `${scdCount} family member(s) diagnosed with SCD. ${
-          earlyOnsetCount > 0 ? "Including early-onset cases. " : ""
-        }Immediate screening recommended.`,
-        severity: "critical",
+        message: "Multiple SCD-related records were found in your family history. Clinical follow-up is recommended.",
+        severity: "critical"
       };
     }
 
-    if (scdCount === 1 || atRiskCount >= 2) {
+    if (diagnosedMembers === 1 || sickleRecords.length >= 1 || hereditaryRecords.length >= 2) {
       return {
         level: "Moderate Risk",
         color: "amber",
-        message: `${
-          scdCount === 1 ? "1 diagnosed case and " : ""
-        }${atRiskCount} family member(s) at risk. Regular monitoring advised.`,
-        severity: "moderate",
-      };
-    }
-
-    if (atRiskCount === 1) {
-      return {
-        level: "Low-Moderate Risk",
-        color: "yellow",
-        message: "1 family member at risk. Stay vigilant with regular checkups.",
-        severity: "low-moderate",
+        message: "Some hereditary/SCD indicators were found. Regular monitoring is advised.",
+        severity: "moderate"
       };
     }
 
     return {
       level: "Low Risk",
       color: "green",
-      message:
-        "No immediate hereditary risk detected. Continue healthy lifestyle habits.",
-      severity: "low",
+      message: "No strong hereditary risk indicators found in current records.",
+      severity: "low"
     };
-  }, [earlyOnsetMembers.length, scdMembers.length, atRiskMembers.length]);
+  }, [diagnosedMembers, sickleRecords.length, hereditaryRecords.length]);
 
   const recommendations = useMemo(() => {
-    const base = [];
-
     if (risk.severity === "critical") {
-      base.push(
-        "Schedule a comprehensive cardiac screening within the next 2 weeks",
-        "Consult with a genetic counselor for family planning guidance",
-        "Begin regular cardiovascular health monitoring (every 3-6 months)",
-        "Share your complete family health history with all healthcare providers",
-        "Consider genetic testing for all immediate family members"
-      );
-    } else if (risk.severity === "moderate") {
-      base.push(
-        "Schedule a preventive cardiac screening within the next 3 months",
-        "Discuss family history in detail with your primary care physician",
-        "Monitor for early warning signs (chest pain, shortness of breath)",
-        "Maintain a heart-healthy diet and regular exercise routine",
-        "Keep detailed records of family health history"
-      );
-    } else if (risk.severity === "low-moderate") {
-      base.push(
-        "Schedule annual cardiac checkups",
-        "Track and update family health history regularly",
-        "Maintain healthy lifestyle habits (diet, exercise, no smoking)",
-        "Stay informed about SCD symptoms and warning signs",
-        "Consider preventive genetic counseling if planning a family"
-      );
-    } else {
-      base.push(
-        "Continue with routine annual health checkups",
-        "Maintain a healthy lifestyle with balanced diet and exercise",
-        "Keep family health history updated in the Sillah app",
-        "Stay educated about hereditary health conditions",
-        "Monitor any new symptoms and report to your doctor"
-      );
+      return [
+        "Schedule specialist follow-up within the next 2-4 weeks",
+        "Discuss family history and possible genetic testing with your provider",
+        "Keep family medical history records updated in Sillah"
+      ];
     }
 
-    return base;
+    if (risk.severity === "moderate") {
+      return [
+        "Keep regular annual checkups",
+        "Discuss family-history findings with your doctor",
+        "Update medical records whenever new diagnoses occur"
+      ];
+    }
+
+    return [
+      "Continue routine preventive care",
+      "Maintain healthy lifestyle habits",
+      "Keep family records updated for future reassessments"
+    ];
   }, [risk.severity]);
 
   const riskPercentage = useMemo(() => {
     if (members.length === 0) return 0;
+    const score = Math.min(100, diagnosedMembers * 35 + sickleRecords.length * 15 + hereditaryRecords.length * 10);
+    return score;
+  }, [members.length, diagnosedMembers, sickleRecords.length, hereditaryRecords.length]);
 
-    let score = 0;
-    const maxScore = members.length * 100;
-
-    score += scdMembers.length * 50;
-    score += earlyOnsetMembers.length * 30;
-    score += atRiskMembers.length * 20;
-
-    return Math.min(Math.round((score / maxScore) * 100), 100);
-  }, [members.length, scdMembers.length, earlyOnsetMembers.length, atRiskMembers.length]);
-
-  // ---- Loading ----
   if (loading) {
     return (
       <div className="risk-assessment-page">
@@ -228,16 +166,13 @@ export default function RiskAssessment() {
           <div className="empty-state">
             <Heart className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
             <p className="empty-title">Analyzing Family Health Data...</p>
-            <p className="empty-text">
-              Please wait while we calculate your hereditary risk assessment.
-            </p>
+            <p className="empty-text">Please wait while we calculate your hereditary risk assessment.</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // ---- Error ----
   if (error) {
     return (
       <div className="risk-assessment-page">
@@ -262,7 +197,6 @@ export default function RiskAssessment() {
     );
   }
 
-  // ---- No Members ----
   if (members.length === 0) {
     return (
       <div className="risk-assessment-page">
@@ -277,9 +211,7 @@ export default function RiskAssessment() {
           <div className="empty-state">
             <Users className="empty-icon" />
             <p className="empty-title">No Family Members Added Yet</p>
-            <p className="empty-text">
-              Add family members to your family tree to generate a personalized risk assessment.
-            </p>
+            <p className="empty-text">Add family members to generate a personalized risk assessment.</p>
             <button onClick={() => navigate("/family-tree")} className="empty-action-btn">
               <Users className="empty-action-icon" />
               Add Family Members
@@ -290,7 +222,6 @@ export default function RiskAssessment() {
     );
   }
 
-  // ---- Main UI ----
   return (
     <div className="risk-assessment-page">
       <div className="risk-assessment-container">
@@ -300,7 +231,7 @@ export default function RiskAssessment() {
             Risk Assessment
           </h1>
           <p className="risk-assessment-subtitle">
-            Based on {members.length} family member{members.length !== 1 ? "s" : ""} in your family tree
+            Based on {members.length} family member{members.length !== 1 ? "s" : ""} and {records.length} health record{records.length !== 1 ? "s" : ""}
           </p>
         </div>
 
@@ -324,165 +255,22 @@ export default function RiskAssessment() {
                 <span className="risk-percentage-value">{riskPercentage}%</span>
               </div>
               <div className="risk-percentage-bar">
-                <div
-                  className={`risk-percentage-fill bg-${risk.color}`}
-                  style={{ width: `${riskPercentage}%` }}
-                />
+                <div className={`risk-percentage-fill bg-${risk.color}`} style={{ width: `${riskPercentage}%` }} />
               </div>
-            </div>
-
-            {risk.severity === "critical" && (
-              <div className="critical-alert">
-                <h4 className="critical-alert-title">
-                  <AlertTriangle className="alert-icon" />
-                  Critical Risk Factors Identified
-                </h4>
-                <p className="critical-alert-text">
-                  {scdMembers.length} family member{scdMembers.length > 1 ? "s" : ""} diagnosed with Sickle Cell Disease.
-                  {earlyOnsetMembers.length > 0 &&
-                    ` Including ${earlyOnsetMembers.length} early-onset case(s).`}{" "}
-                  Immediate medical consultation recommended.
-                </p>
-                <button className="critical-alert-btn" onClick={() => navigate("/clinics")}>
-                  Find Nearby Clinics
-                  <ArrowRight className="btn-arrow-icon" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="risk-stats-grid">
-          <div className="risk-stat-card">
-            <div className="risk-stat-content">
-              <div className="risk-stat-info">
-                <p className="risk-stat-label">Total Family Members</p>
-                <p className="risk-stat-value">{members.length}</p>
-              </div>
-              <Users className="risk-stat-icon" style={{ color: "#3b82f6", opacity: 0.2 }} />
-            </div>
-          </div>
-
-          <div className="risk-stat-card">
-            <div className="risk-stat-content">
-              <div className="risk-stat-info">
-                <p className="risk-stat-label">SCD Cases</p>
-                <p className="risk-stat-value">{scdMembers.length}</p>
-              </div>
-              <AlertTriangle className="risk-stat-icon" style={{ color: "#ef4444", opacity: 0.2 }} />
-            </div>
-          </div>
-
-          <div className="risk-stat-card">
-            <div className="risk-stat-content">
-              <div className="risk-stat-info">
-                <p className="risk-stat-label">Early Onset (&lt;50)</p>
-                <p className="risk-stat-value">{earlyOnsetMembers.length}</p>
-              </div>
-              <Heart className="risk-stat-icon" style={{ color: "#a855f7", opacity: 0.2 }} />
-            </div>
-          </div>
-
-          <div className="risk-stat-card">
-            <div className="risk-stat-content">
-              <div className="risk-stat-info">
-                <p className="risk-stat-label">At Risk</p>
-                <p className="risk-stat-value">{atRiskMembers.length}</p>
-              </div>
-              <TrendingUp className="risk-stat-icon" style={{ color: "#f59e0b", opacity: 0.2 }} />
             </div>
           </div>
         </div>
 
-        <div className="recommendations-card">
-          <h2 className="recommendations-title">Personalized Recommendations</h2>
-          <div className="recommendations-list">
-            {recommendations.map((rec, idx) => (
-              <div key={idx} className="recommendation-item">
-                <div className="recommendation-number">{idx + 1}</div>
-                <p className="recommendation-text">{rec}</p>
-              </div>
+        <div className="risk-recommendations-card">
+          <h3 className="recommendations-title">
+            <TrendingUp className="recommendations-icon" />
+            Recommendations
+          </h3>
+          <ul className="recommendations-list">
+            {recommendations.map((item, idx) => (
+              <li key={idx} className="recommendation-item">{item}</li>
             ))}
-          </div>
-        </div>
-
-        {(scdMembers.length > 0) && (
-          <div className="high-risk-members-card">
-            <h2 className="high-risk-title">Family Members with SCD</h2>
-            <div className="high-risk-members-list">
-              {scdMembers.map((member) => (
-                <div key={member.id} className="high-risk-member-item">
-                  <div className="high-risk-member-info">
-                    <div>
-                      <h4 className="high-risk-member-name">{member.name || "Unknown"}</h4>
-                      <p className="high-risk-member-relation">
-                        {member.relationship || "Family Member"}
-                        {typeof member.age === "number" || member.age ? ` • Age ${member.age}` : ""}
-                      </p>
-                    </div>
-                    <div className="high-risk-member-diagnosis">
-                      <p className="diagnosis-age">
-                        {getDiagnosisAge(member) !== null
-                          ? `Diagnosed at age ${getDiagnosisAge(member)}`
-                          : "Diagnosed"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {atRiskMembers.length > 0 && (
-          <div className="high-risk-members-card">
-            <h2 className="high-risk-title">At-Risk Family Members</h2>
-            <div className="high-risk-members-list">
-              {atRiskMembers.map((member) => (
-                <div key={member.id} className="high-risk-member-item">
-                  <div className="high-risk-member-info">
-                    <div>
-                      <h4 className="high-risk-member-name">{member.name || "Unknown"}</h4>
-                      <p className="high-risk-member-relation">
-                        {member.relationship || "Family Member"}
-                        {typeof member.age === "number" || member.age ? ` • Age ${member.age}` : ""}
-                      </p>
-                    </div>
-                    <div className="high-risk-member-diagnosis">
-                      <span
-                        className="diagnosis-age"
-                        style={{ color: "#f59e0b", fontWeight: 600 }}
-                      >
-                        At Risk - Monitoring Recommended
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="risk-actions">
-          <button
-            onClick={() => navigate("/family-tree")}
-            className="risk-action-btn btn-secondary"
-            type="button"
-          >
-            <Users className="risk-action-icon" />
-            Update Family Tree
-          </button>
-
-          {risk.severity !== "low" && (
-            <button
-              onClick={() => navigate("/clinics")}
-              className="risk-action-btn btn-primary"
-              type="button"
-            >
-              <Heart className="risk-action-icon" />
-              Find Healthcare Providers
-            </button>
-          )}
+          </ul>
         </div>
       </div>
     </div>

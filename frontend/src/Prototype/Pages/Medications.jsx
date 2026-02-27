@@ -166,17 +166,31 @@ export default function Medications() {
     return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   }
 
-  async function assertPatientExists(patientId) {
-    // Optional but SUPER helpful for doctor prescribing by patient UUID
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, role, full_name, email")
-      .eq("id", patientId)
-      .maybeSingle();
+  async function assertPatientExists(patientRef) {
+    const ref = String(patientRef || "").trim();
+    if (!ref) return { ok: false, msg: "Patient code is required." };
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref);
+
+    let query = supabase.from("profiles").select("id, role, full_name, email, patient_code");
+    query = isUuid ? query.eq("id", ref) : query.eq("patient_code", ref);
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) throw error;
-    if (!data) return { ok: false, msg: "No patient found with that ID." };
-    if (data.role !== "patient") return { ok: false, msg: "That ID is not a patient account." };
+    if (!data) return { ok: false, msg: "No patient found with that code." };
+    if (data.role !== "patient") return { ok: false, msg: "That code does not belong to a patient account." };
+
+    const { data: link, error: linkError } = await supabase
+      .from("doctor_patient")
+      .select("doctor_id")
+      .eq("doctor_id", currentUser.id)
+      .eq("patient_id", data.id)
+      .maybeSingle();
+
+    if (linkError) throw linkError;
+    if (!link) return { ok: false, msg: "You can only prescribe for patients linked to your account." };
+
     return { ok: true, patient: data };
   }
 
@@ -191,14 +205,9 @@ export default function Medications() {
     }
 
     if (isDoctor) {
-      const pid = formData.prescribed_for_patient.trim();
-      if (!pid) {
-        setFormError("Patient ID is required for doctors.");
-        return;
-      }
-      // quick UUID-ish check (still allow DB to be source of truth)
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pid)) {
-        setFormError("Patient ID must be a valid UUID.");
+      const patientCode = formData.prescribed_for_patient.trim();
+      if (!patientCode) {
+        setFormError("Patient code is required for doctors.");
         return;
       }
     }
@@ -211,15 +220,16 @@ export default function Medications() {
       let doctorId = null;
 
       if (viewMode === "doctor") {
-        patientId = formData.prescribed_for_patient.trim();
+        const patientRef = formData.prescribed_for_patient.trim();
         doctorId = currentUser.id;
 
-        const check = await assertPatientExists(patientId);
+        const check = await assertPatientExists(patientRef);
         if (!check.ok) {
           setFormError(check.msg);
           setSaving(false);
           return;
         }
+        patientId = check.patient.id;
       }
 
       const payload = {
@@ -718,7 +728,7 @@ export default function Medications() {
                   <>
                     <div className="form-field">
                       <label htmlFor="prescribed_for_patient" className="form-label">
-                        Patient ID (UUID) *
+                        Patient Code *
                       </label>
                       <input
                         id="prescribed_for_patient"
@@ -726,7 +736,7 @@ export default function Medications() {
                         value={formData.prescribed_for_patient}
                         onChange={(e) => setFormData({ ...formData, prescribed_for_patient: e.target.value })}
                         className="form-input"
-                        placeholder="Paste patient UUID here"
+                        placeholder="Enter patient code (e.g., P-AB12CD34)"
                         required
                       />
                     </div>

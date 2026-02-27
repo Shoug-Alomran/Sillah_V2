@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import Layout from "./Components/Layout.jsx";
+import { useAuth } from "./contexts/AuthContext";
 
 import Login from "./Prototype/Pages/Login.jsx";
 import Signup from "./Prototype/Pages/Signup.jsx";
@@ -20,6 +21,17 @@ import Phase5Demo from "./Prototype/Pages/Phase5Demo.jsx";
 
 function Shell({ pageName, children }) {
   return <Layout currentPageName={pageName}>{children}</Layout>;
+}
+
+function RoleRoute({ allow, children }) {
+  const { loading, isDoctor, isPatient } = useAuth();
+
+  if (loading) return null;
+
+  if (allow === "doctor" && !isDoctor) return <Navigate to="/dashboard" replace />;
+  if (allow === "patient" && !isPatient) return <Navigate to="/dashboard" replace />;
+
+  return children;
 }
 
 export default function App() {
@@ -43,18 +55,72 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/my-health" element={<ProtectedRoute><Shell pageName="MyHealth"><MyHealth /></Shell></ProtectedRoute>} />
-      <Route path="/alerts" element={<ProtectedRoute><Shell pageName="Alerts"><Alerts /></Shell></ProtectedRoute>} />
+      <Route
+        path="/my-health"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allow="patient">
+              <Shell pageName="MyHealth"><MyHealth /></Shell>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/alerts"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allow="patient">
+              <Shell pageName="Alerts"><Alerts /></Shell>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/medications" element={<ProtectedRoute><Shell pageName="Medications"><Medications /></Shell></ProtectedRoute>} />
       <Route path="/appointments" element={<ProtectedRoute><Shell pageName="Appointments"><Appointments /></Shell></ProtectedRoute>} />
       <Route path="/clinics" element={<ProtectedRoute><Shell pageName="Clinics"><Clinics /></Shell></ProtectedRoute>} />
       <Route path="/awareness-hub" element={<ProtectedRoute><Shell pageName="AwarenessHub"><AwarenessHub /></Shell></ProtectedRoute>} />
-      <Route path="/family-tree" element={<ProtectedRoute><Shell pageName="FamilyTree"><FamilyTree /></Shell></ProtectedRoute>} />
-      <Route path="/risk-assessment" element={<ProtectedRoute><Shell pageName="RiskAssessment"><RiskAssessment /></Shell></ProtectedRoute>} />
+      <Route
+        path="/family-tree"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allow="patient">
+              <Shell pageName="FamilyTree"><FamilyTree /></Shell>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/risk-assessment"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allow="patient">
+              <Shell pageName="RiskAssessment"><RiskAssessment /></Shell>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Doctor */}
-      <Route path="/patients" element={<ProtectedRoute><Shell pageName="Patients"><Patients /></Shell></ProtectedRoute>} />
-      <Route path="/patients/:id" element={<ProtectedRoute><Shell pageName="PatientDetail"><PatientDetail /></Shell></ProtectedRoute>} />
+      <Route
+        path="/patients"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allow="doctor">
+              <Shell pageName="Patients"><Patients /></Shell>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/patients/:id"
+        element={
+          <ProtectedRoute>
+            <RoleRoute allow="doctor">
+              <Shell pageName="PatientDetail"><PatientDetail /></Shell>
+            </RoleRoute>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/login" replace />} />

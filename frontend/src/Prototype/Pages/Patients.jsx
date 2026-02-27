@@ -54,7 +54,7 @@ export default function Patients() {
         // 2) Fetch patient profiles
         const { data: profiles, error: profErr } = await supabase
           .from("profiles")
-          .select("id, full_name, email, phone_number, role, created_at")
+          .select("id, full_name, email, phone_number, role, patient_code, created_at")
           .in("id", patientIds)
           .eq("role", "patient");
 
@@ -306,15 +306,17 @@ export default function Patients() {
                   <div className="patient-id-section">
                     <div className="patient-id-label">PATIENT ID FOR PRESCRIBING:</div>
                     <div className="patient-id-copy-box">
-                      <div className="patient-id-code">{patient.id}</div>
+                      <div className="patient-id-code">{patient.patient_code || "Not assigned"}</div>
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(patient.id);
-                          alert("Patient ID copied to clipboard!");
+                          if (!patient.patient_code) return;
+                          navigator.clipboard.writeText(patient.patient_code);
+                          alert("Patient code copied to clipboard!");
                         }}
                         className="copy-id-btn-small"
                         title="Copy Patient ID"
                         type="button"
+                        disabled={!patient.patient_code}
                       >
                         📋
                       </button>
@@ -323,7 +325,7 @@ export default function Patients() {
 
                   <div className="patient-family-count-section">
                     <button
-                      onClick={() => navigate(`/patient-detail/${patient.id}`)}
+                      onClick={() => navigate(`/patients/${patient.id}`)}
                       className="view-patient-details-btn"
                       type="button"
                     >

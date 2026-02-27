@@ -1,36 +1,22 @@
-// frontend/src/Prototype/Pages/PatientDetail.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ArrowLeft,
-  User,
-  Mail,
-  Phone,
-  AlertTriangle,
-  Users,
-  FileText,
-  Calendar,
-  Copy,
-} from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, AlertTriangle, Users, FileText, Calendar, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function PatientDetail() {
-  const { patientId } = useParams();
+  const { id: patientId } = useParams();
   const navigate = useNavigate();
-  const { profile, isDoctor, currentUser } = useAuth();
+  const { isDoctor, currentUser } = useAuth();
 
   const [patient, setPatient] = useState(null);
   const [familyMembers, setFamilyMembers] = useState([]);
-  const [healthRecords, setHealthRecords] = useState([]);
+  const [medicalHistory, setMedicalHistory] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ---------------------------
-  // DATA LOADING (Supabase)
-  // ---------------------------
   useEffect(() => {
     let cancelled = false;
 
@@ -39,7 +25,7 @@ export default function PatientDetail() {
         setLoading(true);
         setError("");
 
-        if (!currentUser) {
+        if (!currentUser?.id) {
           setError("Please log in.");
           return;
         }
@@ -54,14 +40,11 @@ export default function PatientDetail() {
           return;
         }
 
-        // (A) Make sure this patient is assigned to this doctor
-        // Requires a table: public.doctor_patients(doctor_id uuid, patient_id uuid, status text)
         const { data: assignment, error: assignErr } = await supabase
-          .from("doctor_patients")
-          .select("doctor_id, patient_id, status")
+          .from("doctor_patient")
+          .select("doctor_id, patient_id")
           .eq("doctor_id", currentUser.id)
           .eq("patient_id", patientId)
-          .eq("status", "active")
           .maybeSingle();
 
         if (assignErr) throw assignErr;
@@ -70,11 +53,11 @@ export default function PatientDetail() {
           return;
         }
 
-        // (B) Fetch patient profile
         const { data: patientProfile, error: patientErr } = await supabase
           .from("profiles")
-          .select("id, email, full_name, phone_number, role, selected_doctor_id, created_at")
+          .select("id, email, full_name, phone_number, role, patient_code, created_at")
           .eq("id", patientId)
+          .eq("role", "patient")
           .maybeSingle();
 
         if (patientErr) throw patientErr;
@@ -83,41 +66,44 @@ export default function PatientDetail() {
           return;
         }
 
-        // (C) Fetch patient family members (their own rows)
         const { data: fam, error: famErr } = await supabase
           .from("family_members")
-          .select("id, user_id, name, relationship, age, health_status, medical_notes, diagnosis_age, created_at")
+          .select("id, user_id, full_name, gender, relationship, date_of_birth, created_at")
           .eq("user_id", patientId)
           .order("created_at", { ascending: false });
 
         if (famErr) throw famErr;
 
-        // (D) Optional: Health records + appointments
-        // If you haven't created these tables yet, this will fail.
-        // You can comment these blocks out until you create the tables.
-        const { data: health, error: healthErr } = await supabase
-          .from("personal_health_records")
-          .select("*")
-          .eq("user_id", patientId)
-          .order("created_at", { ascending: false });
+        const familyMemberIds = (fam || []).map((m) => m.id);
 
-        // If table doesn't exist yet, ignore the error instead of breaking the page
-        const safeHealth = healthErr ? [] : (health || []);
+        let historyRows = [];
+        if (familyMemberIds.length > 0) {
+          const { data: historyData, error: historyErr } = await supabase
+            .from("medical_history")
+            .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+            .in("family_member_id", familyMemberIds)
+            .order("diagnosis_date", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+
+          if (historyErr) throw historyErr;
+          historyRows = historyData || [];
+        }
 
         const { data: appts, error: apptErr } = await supabase
           .from("appointments")
-          .select("*")
+          .select("id, clinic_name, appointment_date, appointment_time, reason, status, created_at")
           .eq("patient_id", patientId)
+          .order("appointment_date", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false });
 
-        const safeAppts = apptErr ? [] : (appts || []);
+        if (apptErr) throw apptErr;
 
         if (cancelled) return;
 
         setPatient(patientProfile);
         setFamilyMembers(fam || []);
-        setHealthRecords(safeHealth);
-        setAppointments(safeAppts);
+        setMedicalHistory(historyRows);
+        setAppointments(appts || []);
       } catch (err) {
         console.error("Error fetching patient data:", err);
         if (!cancelled) setError(err?.message || "Failed to load patient data");
@@ -130,47 +116,29 @@ export default function PatientDetail() {
     return () => {
       cancelled = true;
     };
-  }, [patientId, currentUser, isDoctor]);
+  }, [patientId, currentUser?.id, isDoctor]);
 
-  // ---------------------------
-  // HELPERS
-  // ---------------------------
-  const copyPatientId = () => {
-    navigator.clipboard.writeText(patientId);
-    alert("Patient ID copied to clipboard!");
+  const memberNameById = useMemo(() => {
+    const map = new Map();
+    familyMembers.forEach((member) => {
+      map.set(member.id, member.full_name || "Family Member");
+    });
+    return map;
+  }, [familyMembers]);
+
+  const hereditaryCount = useMemo(() => {
+    return medicalHistory.filter((row) => {
+      const text = `${row.condition_name || ""} ${row.notes || ""}`.toLowerCase();
+      return text.includes("sickle") || text.includes("heredit") || text.includes("genetic");
+    }).length;
+  }, [medicalHistory]);
+
+  const copyPatientCode = () => {
+    if (!patient?.patient_code) return;
+    navigator.clipboard.writeText(patient.patient_code);
+    alert("Patient code copied to clipboard!");
   };
 
-  const riskLevel = useMemo(() => {
-    const scdFamilyMembers = familyMembers.filter((m) => {
-      const hs = (m.health_status || "").toLowerCase();
-      const notes = (m.medical_notes || "").toLowerCase();
-      return hs.includes("scd") || hs.includes("sickle cell") || notes.includes("scd") || notes.includes("sickle cell");
-    });
-
-    const earlyOnset = scdFamilyMembers.filter((m) => {
-      const age = Number(m.diagnosis_age);
-      return Number.isFinite(age) && age < 50;
-    });
-
-    if (earlyOnset.length >= 2) return "High";
-    if (earlyOnset.length === 1) return "Moderate";
-    if (scdFamilyMembers.length > 0) return "Low";
-    return "None";
-  }, [familyMembers]);
-
-  const scdEarlyOnset = useMemo(() => {
-    return familyMembers.filter((m) => {
-      const hs = (m.health_status || "").toLowerCase();
-      const notes = (m.medical_notes || "").toLowerCase();
-      const hasSCD = hs.includes("scd") || hs.includes("sickle cell") || notes.includes("scd") || notes.includes("sickle cell");
-      const age = Number(m.diagnosis_age);
-      return hasSCD && Number.isFinite(age) && age < 50;
-    });
-  }, [familyMembers]);
-
-  // ---------------------------
-  // UI STATES
-  // ---------------------------
   if (loading) {
     return (
       <div className="patients-page">
@@ -198,13 +166,9 @@ export default function PatientDetail() {
     );
   }
 
-  // ---------------------------
-  // MAIN RENDER
-  // ---------------------------
   return (
     <div className="patients-page">
       <div className="patients-container">
-        {/* Back Button */}
         <button
           onClick={() => navigate("/patients")}
           style={{
@@ -219,7 +183,7 @@ export default function PatientDetail() {
             marginBottom: "1.5rem",
             fontSize: "0.875rem",
             fontWeight: "500",
-            color: "#4b5563",
+            color: "#4b5563"
           }}
           type="button"
         >
@@ -227,64 +191,20 @@ export default function PatientDetail() {
           Back to Patients
         </button>
 
-        {/* Patient Header */}
-        <div
-          style={{
-            background: "white",
-            borderRadius: "1rem",
-            padding: "1.5rem",
-            marginBottom: "1.5rem",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              marginBottom: "1rem",
-            }}
-          >
+        <div style={{ background: "white", borderRadius: "1rem", padding: "1.5rem", marginBottom: "1.5rem", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1rem" }}>
             <div style={{ display: "flex", gap: "1rem" }}>
-              <div
-                style={{
-                  width: "4rem",
-                  height: "4rem",
-                  background: "linear-gradient(135deg, #14b8a6, #06b6d4)",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
+              <div style={{ width: "4rem", height: "4rem", background: "linear-gradient(135deg, #14b8a6, #06b6d4)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <User size={32} color="white" />
               </div>
 
               <div>
-                <h1
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: 700,
-                    margin: "0 0 0.5rem 0",
-                  }}
-                >
-                  {patient.full_name || "Unknown Patient"}
-                </h1>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "1rem",
-                    fontSize: "0.875rem",
-                    color: "#6b7280",
-                    flexWrap: "wrap",
-                  }}
-                >
+                <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.5rem 0" }}>{patient.full_name || "Unknown Patient"}</h1>
+                <div style={{ display: "flex", gap: "1rem", fontSize: "0.875rem", color: "#6b7280", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                     <Mail size={14} />
                     {patient.email || "No email"}
                   </div>
-
                   {patient.phone_number && (
                     <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                       <Phone size={14} />
@@ -296,65 +216,39 @@ export default function PatientDetail() {
             </div>
           </div>
 
-          {/* PATIENT ID - For Prescribing */}
-          {isDoctor && (
-            <div
-              style={{
-                background: "#dbeafe",
-                border: "1px solid #bfdbfe",
-                borderRadius: "0.5rem",
-                padding: "1rem",
-                marginTop: "1rem",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                <Copy size={16} color="#2563eb" />
-                <strong style={{ color: "#1e40af", fontSize: "0.875rem" }}>
-                  PATIENT ID (USE THIS TO PRESCRIBE MEDICATIONS)
-                </strong>
-              </div>
-
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <input
-                  type="text"
-                  value={patientId}
-                  readOnly
-                  style={{
-                    flex: 1,
-                    padding: "0.5rem",
-                    border: "1px solid #93c5fd",
-                    borderRadius: "0.375rem",
-                    background: "white",
-                    fontFamily: "monospace",
-                    fontSize: "0.875rem",
-                  }}
-                />
-                <button
-                  onClick={copyPatientId}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    background: "#2563eb",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "0.375rem",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    fontSize: "0.875rem",
-                  }}
-                  type="button"
-                >
-                  Copy ID
-                </button>
-              </div>
-
-              <p style={{ fontSize: "0.75rem", color: "#1e3a8a", margin: "0.5rem 0 0 0" }}>
-                Paste this Patient ID in the Medications page when prescribing
-              </p>
+          <div style={{ background: "#dbeafe", border: "1px solid #bfdbfe", borderRadius: "0.5rem", padding: "1rem", marginTop: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <Copy size={16} color="#2563eb" />
+              <strong style={{ color: "#1e40af", fontSize: "0.875rem" }}>PATIENT CODE (USE THIS TO PRESCRIBE MEDICATIONS)</strong>
             </div>
-          )}
+
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="text"
+                value={patient.patient_code || "Not assigned"}
+                readOnly
+                style={{
+                  flex: 1,
+                  padding: "0.5rem",
+                  border: "1px solid #93c5fd",
+                  borderRadius: "0.375rem",
+                  background: "white",
+                  fontFamily: "monospace",
+                  fontSize: "0.875rem"
+                }}
+              />
+              <button
+                onClick={copyPatientCode}
+                style={{ padding: "0.5rem 1rem", background: "#2563eb", color: "white", border: "none", borderRadius: "0.375rem", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+                type="button"
+                disabled={!patient.patient_code}
+              >
+                Copy Code
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Stats Grid */}
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-card-content">
@@ -371,8 +265,8 @@ export default function PatientDetail() {
           <div className="stat-card">
             <div className="stat-card-content">
               <div className="stat-info">
-                <p className="stat-label">Health Records</p>
-                <h3 className="stat-value">{healthRecords.length}</h3>
+                <p className="stat-label">Medical Records</p>
+                <h3 className="stat-value">{medicalHistory.length}</h3>
               </div>
               <div className="stat-icon-wrapper from-purple-500">
                 <FileText className="stat-icon" />
@@ -383,14 +277,8 @@ export default function PatientDetail() {
           <div className="stat-card">
             <div className="stat-card-content">
               <div className="stat-info">
-                <p className="stat-label">SCD Cases</p>
-                <h3 className="stat-value">
-                  {familyMembers.filter((m) => {
-                    const hs = (m.health_status || "").toLowerCase();
-                    const notes = (m.medical_notes || "").toLowerCase();
-                    return hs.includes("scd") || hs.includes("sickle cell") || notes.includes("scd") || notes.includes("sickle cell");
-                  }).length}
-                </h3>
+                <p className="stat-label">Possible Hereditary</p>
+                <h3 className="stat-value">{hereditaryCount}</h3>
               </div>
               <div className="stat-icon-wrapper from-green-500">
                 <AlertTriangle className="stat-icon" />
@@ -411,64 +299,14 @@ export default function PatientDetail() {
           </div>
         </div>
 
-        {/* Risk Alert */}
-        {scdEarlyOnset.length > 0 && (
-          <div
-            className="alert-card"
-            style={{
-              borderLeftColor: riskLevel === "High" ? "#ef4444" : "#f59e0b",
-            }}
-          >
-            <div className="alert-card-header">
-              <div className="alert-header-content">
-                <div
-                  className="alert-icon-wrapper"
-                  style={{
-                    background: riskLevel === "High" ? "#ef4444" : "#f59e0b",
-                  }}
-                >
-                  <AlertTriangle size={20} />
-                </div>
-                <div className="alert-header-info">
-                  <h3 className="alert-title">{riskLevel} Risk - Early Onset Cases Detected</h3>
-                  <p className="alert-date">
-                    {scdEarlyOnset.length} family member{scdEarlyOnset.length > 1 ? "s" : ""} with SCD diagnosed before age 50
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="alert-card-body">
-              <div className="alert-risk-factors">
-                <p className="risk-factors-title">Family Members:</p>
-                <ul className="risk-factors-list">
-                  {scdEarlyOnset.map((member) => (
-                    <li key={member.id} className="risk-factor-item">
-                      <span className="risk-bullet">•</span>
-                      {member.name} ({member.relationship}) — Diagnosed at age {member.diagnosis_age}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="alert-recommendation" style={{ borderLeftColor: "#14b8a6" }}>
-                <p className="recommendation-title">Clinical Recommendation:</p>
-                <p className="recommendation-text">
-                  Genetic counseling and preventive cardiac screening recommended for patient and immediate family members.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Family Tree */}
         <div className="activity-card">
           <div className="activity-card-header">
-            <h2 className="activity-card-title">Family Health Tree ({familyMembers.length} members)</h2>
+            <h2 className="activity-card-title">Family Members</h2>
           </div>
-
           <div className="activity-card-content">
-            {familyMembers.length > 0 ? (
+            {familyMembers.length === 0 ? (
+              <p className="empty-message">No family members recorded.</p>
+            ) : (
               <div className="members-grid">
                 {familyMembers.map((member) => (
                   <div key={member.id} className="member-card-component">
@@ -478,103 +316,54 @@ export default function PatientDetail() {
                           <User className="user-icon" />
                         </div>
                         <div className="member-info-text">
-                          <h3 className="member-name-text">{member.name}</h3>
-                          <p className="member-relation-text">{member.relationship}</p>
+                          <h3 className="member-name-text">{member.full_name || "Unnamed"}</h3>
+                          <p className="member-relation-text">{member.relationship || "Unknown relation"}</p>
                         </div>
                       </div>
                     </div>
-
                     <div className="member-card-body-component">
                       <div className="member-detail-row-component">
-                        <span className="detail-label-component">Age:</span>
-                        <span className="detail-value-component">
-                          member.age || member.age === 0 ? `${member.age} years` : "Unknown"
-                        </span>
+                        <span className="detail-label-component">Gender:</span>
+                        <span className="detail-value-component">{member.gender || "Unknown"}</span>
                       </div>
-
                       <div className="member-detail-row-component">
-                        <span className="detail-label-component">Status:</span>
-                        <span
-                          className={`member-status-badge ${
-                            ((member.health_status || "").toLowerCase().includes("scd") ||
-                              (member.health_status || "").toLowerCase().includes("sickle cell") ||
-                              (member.medical_notes || "").toLowerCase().includes("scd") ||
-                              (member.medical_notes || "").toLowerCase().includes("sickle cell"))
-                              ? "status-scd"
-                              : (member.health_status || "").toLowerCase() === "at risk" ||
-                                (member.health_status || "").toLowerCase() === "at_risk"
-                              ? "status-at-risk"
-                              : "status-healthy"
-                          }`}
-                        >
-                          {member.health_status || "Healthy"}
+                        <span className="detail-label-component">DOB:</span>
+                        <span className="detail-value-component">
+                          {member.date_of_birth ? format(new Date(member.date_of_birth), "MMM d, yyyy") : "Unknown"}
                         </span>
                       </div>
-
-                      {member.diagnosis_age !== null && member.diagnosis_age !== undefined && (
-                        <div className="member-detail-row-component">
-                          <span className="detail-label-component">Diagnosed:</span>
-                          <span className="detail-value-component">Age {member.diagnosis_age}</span>
-                        </div>
-                      )}
-
-                      {member.medical_notes && (
-                        <div className="member-detail-row-component">
-                          <span className="detail-label-component">Notes:</span>
-                          <span className="detail-value-component">{member.medical_notes}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="empty-message">No family members recorded yet</p>
             )}
           </div>
         </div>
 
-        {/* Health Records */}
         <div className="activity-card">
           <div className="activity-card-header">
-            <h2 className="activity-card-title">Patient Health Records</h2>
+            <h2 className="activity-card-title">Medical History</h2>
           </div>
-
           <div className="activity-card-content">
-            {healthRecords.length > 0 ? (
+            {medicalHistory.length === 0 ? (
+              <p className="empty-message">No medical history records available.</p>
+            ) : (
               <div className="health-records-list">
-                {healthRecords.map((record) => (
+                {medicalHistory.map((record) => (
                   <div key={record.id} className="health-record-card">
                     <div className="record-header">
                       <div className="record-header-content">
-                        <h3 className="record-diagnosis">{record.diagnosis || "Health Record"}</h3>
+                        <h3 className="record-diagnosis">{record.condition_name || "Condition"}</h3>
                         <p className="record-date">
-                          {record.diagnosis_date
-                            ? format(new Date(record.diagnosis_date), "MMM d, yyyy")
-                            : "Date unknown"}
+                          {record.diagnosis_date ? format(new Date(record.diagnosis_date), "MMM d, yyyy") : "Date unknown"}
                         </p>
                       </div>
-                      {record.is_hereditary_condition && (
-                        <span className="hereditary-badge">Hereditary</span>
-                      )}
                     </div>
-
                     <div className="record-body">
-                      {record.age_at_diagnosis && (
-                        <div className="record-info-row">
-                          <span className="info-label">Age at diagnosis:</span>
-                          <span className="info-value">{record.age_at_diagnosis}</span>
-                        </div>
-                      )}
-
-                      {record.treatment && (
-                        <div className="record-detail-box">
-                          <p className="detail-text">
-                            <strong>Treatment:</strong> {record.treatment}
-                          </p>
-                        </div>
-                      )}
-
+                      <div className="record-info-row">
+                        <span className="info-label">Family Member:</span>
+                        <span className="info-value">{memberNameById.get(record.family_member_id) || "Unknown"}</span>
+                      </div>
                       {record.notes && (
                         <div className="record-detail-box">
                           <p className="detail-text">{record.notes}</p>
@@ -584,28 +373,24 @@ export default function PatientDetail() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="empty-message">No personal health records available</p>
             )}
           </div>
         </div>
 
-        {/* Appointments */}
         <div className="activity-card">
           <div className="activity-card-header">
             <h2 className="activity-card-title">Appointment History</h2>
           </div>
-
           <div className="activity-card-content">
-            {appointments.length > 0 ? (
+            {appointments.length === 0 ? (
+              <p className="empty-message">No appointments scheduled.</p>
+            ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 {appointments.map((apt) => (
                   <div key={apt.id} className="appointment-item">
                     <h4 className="appointment-item-title">{apt.clinic_name || "Clinic Visit"}</h4>
                     <p className="appointment-item-details">
-                      {apt.appointment_date
-                        ? format(new Date(apt.appointment_date), "EEEE, MMM d, yyyy")
-                        : "Date TBD"}
+                      {apt.appointment_date ? format(new Date(apt.appointment_date), "EEEE, MMM d, yyyy") : "Date TBD"}
                       {apt.appointment_time && ` at ${apt.appointment_time}`}
                     </p>
                     {apt.reason && (
@@ -616,8 +401,6 @@ export default function PatientDetail() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="empty-message">No appointments scheduled</p>
             )}
           </div>
         </div>
