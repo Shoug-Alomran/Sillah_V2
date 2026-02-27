@@ -101,7 +101,10 @@ export function AuthProvider({ children }) {
     if (role === "patient" && selectedDoctor) {
       const { error: relationError } = await supabase
         .from("doctor_patient")
-        .upsert({ doctor_id: selectedDoctor, patient_id: user.id }, { onConflict: "doctor_id,patient_id" });
+        .upsert(
+          { doctor_id: selectedDoctor, patient_id: user.id },
+          { onConflict: "doctor_id,patient_id", ignoreDuplicates: true }
+        );
       if (relationError) throw relationError;
     }
 
