@@ -520,7 +520,7 @@ export default function Appointments() {
                   <select id="clinic_select" value={bookingForm.clinic_id} onChange={handleClinicSelect} className="form-input" required>
                     <option value="">-- Choose a clinic --</option>
                     {clinicsData.map((clinic) => (
-                      <option key={clinic.id} value={clinic.id}>
+                      <option key={clinic.id} value={clinic.db_id}>
                         {clinic.name} - {clinic.location} ({clinic.specialty})
                       </option>
                     ))}
