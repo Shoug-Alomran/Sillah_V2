@@ -31,7 +31,7 @@ export const QUERIES = {
     // q06: family members for a given user
     q06: `SELECT member_id, first_name, last_name, relationship
         FROM FamilyMember
-        WHERE user_id = :user_id
+        WHERE user_id = ?
         ORDER BY member_id DESC;`,
 
     // q07: count health events
@@ -46,7 +46,7 @@ export const QUERIES = {
     // q09: events by severity
     q09: `SELECT event_id, member_id, condition_id, severity, event_date
         FROM HealthEvent
-        WHERE severity = :severity
+        WHERE severity = ?
         ORDER BY event_date DESC;`,
 
     // q10: list conditions
@@ -63,7 +63,7 @@ export const QUERIES = {
     // q12: history for one member
     q12: `SELECT event_id, member_id, condition_id, diagnosis_date, notes
         FROM MedicalHistory
-        WHERE member_id = :member_id
+        WHERE member_id = ?
         ORDER BY diagnosis_date DESC;`,
 
     // q13: list risk alerts
@@ -75,7 +75,7 @@ export const QUERIES = {
     // q14: alerts for member
     q14: `SELECT alert_id, member_id, risk_level, status, created_date
         FROM RiskAlert
-        WHERE member_id = :member_id
+        WHERE member_id = ?
         ORDER BY created_date DESC;`,
 
     // q15: count alerts by status (simple group)
@@ -87,7 +87,7 @@ export const QUERIES = {
     // q16: list events for a member (simple filter)
     q16: `SELECT event_id, condition_id, severity, event_date
         FROM HealthEvent
-        WHERE member_id = :member_id
+        WHERE member_id = ?
         ORDER BY event_date DESC;`,
 
     // q17: list “High” severity events (simple)
