@@ -1,26 +1,25 @@
 -- Seed professional demo clinics for Sillah.
--- Safe to run multiple times: inserts only when clinic name does not already exist.
+-- Safe to run repeatedly. Uses your table defaults for id/created_at.
 
-insert into public.clinics (id, name, location, contact_number, created_at)
-select '4ecff95f-9ee9-4cd4-bf9b-68893d920001'::uuid, 'City Health Clinic', 'Riyadh', '+966 11 234 5678', now()
-where not exists (select 1 from public.clinics where name = 'City Health Clinic');
+insert into public.clinics (name, location, contact_number)
+select seed.name, seed.location, seed.contact_number
+from (
+  values
+    ('Sillah Preventive Clinic', 'Riyadh', '+966 50 000 0000'),
+    ('City Health Clinic', 'Riyadh', '+966 11 234 5678'),
+    ('Heart Care Center', 'Jeddah', '+966 12 345 6789'),
+    ('Genetics & Wellness Clinic', 'Riyadh', '+966 11 456 7890'),
+    ('Blood Health Institute', 'Dammam', '+966 13 567 8901'),
+    ('Family Care Medical Center', 'Jeddah', '+966 12 678 9012'),
+    ('Advanced Cardiology Center', 'Riyadh', '+966 11 789 0123')
+) as seed(name, location, contact_number)
+where not exists (
+  select 1
+  from public.clinics c
+  where c.name = seed.name
+);
 
-insert into public.clinics (id, name, location, contact_number, created_at)
-select '4ecff95f-9ee9-4cd4-bf9b-68893d920002'::uuid, 'Heart Care Center', 'Jeddah', '+966 12 345 6789', now()
-where not exists (select 1 from public.clinics where name = 'Heart Care Center');
-
-insert into public.clinics (id, name, location, contact_number, created_at)
-select '4ecff95f-9ee9-4cd4-bf9b-68893d920003'::uuid, 'Genetics & Wellness Clinic', 'Riyadh', '+966 11 456 7890', now()
-where not exists (select 1 from public.clinics where name = 'Genetics & Wellness Clinic');
-
-insert into public.clinics (id, name, location, contact_number, created_at)
-select '4ecff95f-9ee9-4cd4-bf9b-68893d920004'::uuid, 'Blood Health Institute', 'Dammam', '+966 13 567 8901', now()
-where not exists (select 1 from public.clinics where name = 'Blood Health Institute');
-
-insert into public.clinics (id, name, location, contact_number, created_at)
-select '4ecff95f-9ee9-4cd4-bf9b-68893d920005'::uuid, 'Family Care Medical Center', 'Jeddah', '+966 12 678 9012', now()
-where not exists (select 1 from public.clinics where name = 'Family Care Medical Center');
-
-insert into public.clinics (id, name, location, contact_number, created_at)
-select '4ecff95f-9ee9-4cd4-bf9b-68893d920006'::uuid, 'Advanced Cardiology Center', 'Riyadh', '+966 11 789 0123', now()
-where not exists (select 1 from public.clinics where name = 'Advanced Cardiology Center');
+-- Verification
+select id, name, location, contact_number
+from public.clinics
+order by name;

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Calendar, MapPin, Clock, User, X, CheckCircle, AlertTriangle, Plus, Phone, Star } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLocation } from "react-router-dom";
@@ -185,52 +185,70 @@ export default function Appointments() {
     }
   }, [isBooking, incomingClinic, isPatient, clinics]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchAppointments() {
-      if (!currentUser?.id) {
-        if (!cancelled) {
-          setError("Please log in to view appointments");
-          setLoading(false);
-        }
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        let query = supabase.from("appointments").select("*");
-
-        if (isPatient) {
-          query = query.eq("patient_id", currentUser.id);
-        } else if (isDoctor) {
-          query = query.eq("doctor_id", currentUser.id);
-        }
-
-        const { data, error: fetchError } = await query
-          .order("appointment_date", { ascending: false, nullsFirst: false })
-          .order("created_at", { ascending: false });
-
-        if (fetchError) throw fetchError;
-
-        if (!cancelled) {
-          setAppointments(data || []);
-        }
-      } catch (err) {
-        console.error("Error fetching appointments:", err);
-        if (!cancelled) setError(err?.message || "Unable to load appointments. Please try again.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const fetchAppointments = useCallback(async () => {
+    if (!currentUser?.id) {
+      setError("Please log in to view appointments");
+      setLoading(false);
+      return;
     }
 
+    try {
+      setLoading(true);
+      setError(null);
+
+      let query = supabase.from("appointments").select("*");
+
+      if (isPatient) {
+        query = query.eq("patient_id", currentUser.id);
+      } else if (isDoctor) {
+        query = query.eq("doctor_id", currentUser.id);
+      }
+
+      const { data, error: fetchError } = await query
+        .order("appointment_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+
+      if (fetchError) throw fetchError;
+      setAppointments(data || []);
+    } catch (err) {
+      console.error("Error fetching appointments:", err);
+      setError(err?.message || "Unable to load appointments. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser?.id, isDoctor, isPatient]);
+
+  useEffect(() => {
     fetchAppointments();
+  }, [fetchAppointments]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const channel = supabase
+      .channel(`appointments-live-${currentUser.id}-${isDoctor ? "doctor" : "patient"}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointments" },
+        (payload) => {
+          const newRow = payload.new || {};
+          const oldRow = payload.old || {};
+
+          if (isPatient && (newRow.patient_id === currentUser.id || oldRow.patient_id === currentUser.id)) {
+            fetchAppointments();
+          }
+
+          if (isDoctor && (newRow.doctor_id === currentUser.id || oldRow.doctor_id === currentUser.id)) {
+            fetchAppointments();
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
-      cancelled = true;
+      supabase.removeChannel(channel);
     };
-  }, [currentUser?.id, isPatient, isDoctor]);
+  }, [currentUser?.id, isDoctor, isPatient, fetchAppointments]);
 
   const handleClinicSelect = (e) => {
     const clinicId = e.target.value;
