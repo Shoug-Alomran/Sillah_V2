@@ -1,6 +1,7 @@
 export const clinicsData = [
   {
     id: 1,
+    db_id: "4ecff95f-9ee9-4cd4-bf9b-68893d920001",
     name: "City Health Clinic",
     specialty: "General Practice",
     location: "Riyadh",
@@ -14,6 +15,7 @@ export const clinicsData = [
   },
   {
     id: 2,
+    db_id: "4ecff95f-9ee9-4cd4-bf9b-68893d920002",
     name: "Heart Care Center",
     specialty: "Cardiology",
     location: "Jeddah",
@@ -27,6 +29,7 @@ export const clinicsData = [
   },
   {
     id: 3,
+    db_id: "4ecff95f-9ee9-4cd4-bf9b-68893d920003",
     name: "Genetics & Wellness Clinic",
     specialty: "Genetics",
     location: "Riyadh",
@@ -40,6 +43,7 @@ export const clinicsData = [
   },
   {
     id: 4,
+    db_id: "4ecff95f-9ee9-4cd4-bf9b-68893d920004",
     name: "Blood Health Institute",
     specialty: "Hematology",
     location: "Dammam",
@@ -53,6 +57,7 @@ export const clinicsData = [
   },
   {
     id: 5,
+    db_id: "4ecff95f-9ee9-4cd4-bf9b-68893d920005",
     name: "Family Care Medical Center",
     specialty: "General Practice",
     location: "Jeddah",
@@ -66,6 +71,7 @@ export const clinicsData = [
   },
   {
     id: 6,
+    db_id: "4ecff95f-9ee9-4cd4-bf9b-68893d920006",
     name: "Advanced Cardiology Center",
     specialty: "Cardiology",
     location: "Riyadh",

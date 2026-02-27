@@ -59,7 +59,7 @@ async function insertAppointment(basePayload) {
 
 export default function Appointments() {
   const location = useLocation();
-  const { currentUser, profile, isDoctor, isPatient } = useAuth();
+  const { currentUser, isDoctor, isPatient } = useAuth();
 
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +89,7 @@ export default function Appointments() {
       if (clinic) {
         setSelectedClinic(clinic);
         setBookingForm({
-          clinic_id: clinic.id,
+          clinic_id: clinic.db_id || "",
           clinic_name: clinic.name,
           appointment_date: "",
           appointment_time: "",
@@ -153,13 +153,13 @@ export default function Appointments() {
 
   const handleClinicSelect = (e) => {
     const clinicId = e.target.value;
-    const clinic = clinicsData.find((c) => c.id === parseInt(clinicId, 10));
+    const clinic = clinicsData.find((c) => String(c.db_id) === String(clinicId));
 
     if (clinic) {
       setSelectedClinic(clinic);
       setBookingForm((prev) => ({
         ...prev,
-        clinic_id: clinic.id,
+        clinic_id: clinic.db_id || "",
         clinic_name: clinic.name,
         location: clinic.location,
         address: clinic.address,
@@ -207,7 +207,7 @@ export default function Appointments() {
       return;
     }
 
-    if (!bookingForm.appointment_date || !bookingForm.appointment_time) {
+    if (!bookingForm.clinic_id || !bookingForm.appointment_date || !bookingForm.appointment_time) {
       alert("Please fill in all required fields");
       return;
     }
@@ -218,7 +218,7 @@ export default function Appointments() {
       const newAppointment = {
         patient_id: currentUser.id,
         doctor_id: doctorId,
-        clinic_id: null,
+        clinic_id: bookingForm.clinic_id,
         appointment_date: toAppointmentTimestamp(bookingForm.appointment_date, bookingForm.appointment_time),
         status: "pending"
       };
@@ -408,11 +408,12 @@ export default function Appointments() {
           ) : (
             filteredAppointments.map((appointment) => {
               const normalizedStatus = String(appointment.status || "pending").toLowerCase();
+              const clinicMeta = clinicsData.find((c) => String(c.db_id) === String(appointment.clinic_id));
               return (
               <div key={appointment.id} className="appointment-card">
                 <div className="appointment-header">
                   <div className="appointment-header-content">
-                    <h2 className="appointment-clinic">{appointment.clinic_name || "Clinic Appointment"}</h2>
+                    <h2 className="appointment-clinic">{clinicMeta?.name || appointment.clinic_name || "Clinic Appointment"}</h2>
                     <span
                       className="appointment-badge"
                       style={{
@@ -464,7 +465,7 @@ export default function Appointments() {
                     </div>
                     <div className="appointment-info-item">
                       <MapPin className="info-icon" />
-                      <span className="info-text">{appointment.location || "N/A"}</span>
+                      <span className="info-text">{clinicMeta?.location || appointment.location || "N/A"}</span>
                     </div>
                     {isDoctor && appointment.patient_name && (
                       <div className="appointment-info-item">
