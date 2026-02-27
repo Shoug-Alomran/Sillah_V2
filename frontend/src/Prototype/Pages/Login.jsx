@@ -118,6 +118,12 @@ export default function Login() {
                 Sign up
               </Link>
             </p>
+            <p style={{ marginTop: "0.5rem" }}>
+              Working on CS340?{" "}
+              <Link to="/phase5-demo" className="auth-link">
+                Open Phase 5 Demo
+              </Link>
+            </p>
           </div>
         </div>
       </div>
