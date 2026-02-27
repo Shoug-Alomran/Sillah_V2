@@ -7,7 +7,10 @@ const EMPTY_FORM = {
   full_name: "",
   relationship: "",
   gender: "",
-  date_of_birth: ""
+  date_of_birth: "",
+  condition_name: "",
+  diagnosis_date: "",
+  condition_notes: ""
 };
 
 const RELATIONSHIP_OPTIONS = [
@@ -37,6 +40,7 @@ export default function FamilyTree() {
   const [editingMember, setEditingMember] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [latestConditionsByMember, setLatestConditionsByMember] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +74,30 @@ export default function FamilyTree() {
 
         if (fetchError) throw fetchError;
 
-        if (!cancelled) setFamilyMembers(data || []);
+        const members = data || [];
+        const memberIds = members.map((m) => m.id);
+        let latestByMember = {};
+
+        if (memberIds.length > 0) {
+          const { data: history, error: historyError } = await supabase
+            .from("medical_history")
+            .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+            .in("family_member_id", memberIds)
+            .order("diagnosis_date", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+
+          if (historyError) throw historyError;
+
+          latestByMember = (history || []).reduce((acc, row) => {
+            if (!acc[row.family_member_id]) acc[row.family_member_id] = row;
+            return acc;
+          }, {});
+        }
+
+        if (!cancelled) {
+          setFamilyMembers(members);
+          setLatestConditionsByMember(latestByMember);
+        }
       } catch (err) {
         console.error("Error fetching family members:", err);
         if (!cancelled) setError(err?.message || "Unable to load family members");
@@ -94,11 +121,11 @@ export default function FamilyTree() {
     if (!q) return visibleMembers;
 
     return visibleMembers.filter((member) =>
-      [member.full_name, member.relationship, member.gender]
+      [member.full_name, member.relationship, member.gender, latestConditionsByMember[member.id]?.condition_name]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q))
     );
-  }, [familyMembers, searchTerm]);
+  }, [familyMembers, latestConditionsByMember, searchTerm]);
   const hasVisibleMembers = familyMembers.some(
     (member) => String(member.relationship || "").toLowerCase() !== "self"
   );
@@ -115,7 +142,10 @@ export default function FamilyTree() {
       full_name: member.full_name || "",
       relationship: member.relationship || "",
       gender: member.gender || "",
-      date_of_birth: member.date_of_birth || ""
+      date_of_birth: member.date_of_birth || "",
+      condition_name: latestConditionsByMember[member.id]?.condition_name || "",
+      diagnosis_date: latestConditionsByMember[member.id]?.diagnosis_date || "",
+      condition_notes: latestConditionsByMember[member.id]?.notes || ""
     });
     setShowModal(true);
   }
@@ -146,6 +176,8 @@ export default function FamilyTree() {
         date_of_birth: formData.date_of_birth || null
       };
 
+      let savedMember = null;
+
       if (editingMember?.id) {
         const { data, error: updateError } = await supabase
           .from("family_members")
@@ -156,6 +188,7 @@ export default function FamilyTree() {
           .single();
 
         if (updateError) throw updateError;
+        savedMember = data;
 
         setFamilyMembers((prev) => prev.map((m) => (m.id === editingMember.id ? data : m)));
       } else {
@@ -166,8 +199,47 @@ export default function FamilyTree() {
           .single();
 
         if (insertError) throw insertError;
+        savedMember = data;
 
         setFamilyMembers((prev) => [data, ...prev]);
+      }
+
+      if (savedMember?.id) {
+        const existingCondition = latestConditionsByMember[savedMember.id];
+        const conditionPayload = {
+          condition_name: formData.condition_name.trim(),
+          diagnosis_date: formData.diagnosis_date || null,
+          notes: formData.condition_notes?.trim() || null
+        };
+
+        if (conditionPayload.condition_name) {
+          if (existingCondition?.id) {
+            const { data: updatedCondition, error: conditionUpdateError } = await supabase
+              .from("medical_history")
+              .update(conditionPayload)
+              .eq("id", existingCondition.id)
+              .eq("family_member_id", savedMember.id)
+              .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+              .single();
+
+            if (conditionUpdateError) throw conditionUpdateError;
+
+            setLatestConditionsByMember((prev) => ({ ...prev, [savedMember.id]: updatedCondition }));
+          } else {
+            const { data: insertedCondition, error: conditionInsertError } = await supabase
+              .from("medical_history")
+              .insert({
+                family_member_id: savedMember.id,
+                ...conditionPayload
+              })
+              .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+              .single();
+
+            if (conditionInsertError) throw conditionInsertError;
+
+            setLatestConditionsByMember((prev) => ({ ...prev, [savedMember.id]: insertedCondition }));
+          }
+        }
       }
 
       closeModal();
@@ -184,6 +256,12 @@ export default function FamilyTree() {
     if (!window.confirm("Are you sure you want to delete this family member?")) return;
 
     try {
+      const { error: historyDeleteError } = await supabase
+        .from("medical_history")
+        .delete()
+        .eq("family_member_id", memberId);
+      if (historyDeleteError) throw historyDeleteError;
+
       const { error: deleteError } = await supabase
         .from("family_members")
         .delete()
@@ -193,6 +271,11 @@ export default function FamilyTree() {
       if (deleteError) throw deleteError;
 
       setFamilyMembers((prev) => prev.filter((m) => m.id !== memberId));
+      setLatestConditionsByMember((prev) => {
+        const next = { ...prev };
+        delete next[memberId];
+        return next;
+      });
     } catch (err) {
       console.error("Error deleting family member:", err);
       alert(err?.message || "Failed to delete family member");
@@ -300,6 +383,18 @@ export default function FamilyTree() {
                   <p className="family-member-age-new">
                     <strong>Date of Birth:</strong> {formatDate(member.date_of_birth)}
                   </p>
+                  {latestConditionsByMember[member.id]?.condition_name && (
+                    <>
+                      <p className="family-member-age-new">
+                        <strong>Latest Condition:</strong> {latestConditionsByMember[member.id].condition_name}
+                      </p>
+                      {latestConditionsByMember[member.id].diagnosis_date && (
+                        <p className="family-member-age-new">
+                          <strong>Diagnosis Date:</strong> {formatDate(latestConditionsByMember[member.id].diagnosis_date)}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -370,6 +465,40 @@ export default function FamilyTree() {
                     value={formData.date_of_birth}
                     onChange={(e) => setFormData((p) => ({ ...p, date_of_birth: e.target.value }))}
                     className="form-input"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="condition_name" className="form-label">Condition / Diagnosis (Optional)</label>
+                  <input
+                    id="condition_name"
+                    type="text"
+                    value={formData.condition_name}
+                    onChange={(e) => setFormData((p) => ({ ...p, condition_name: e.target.value }))}
+                    className="form-input"
+                    placeholder="e.g., Sickle Cell Disease, Diabetes"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="diagnosis_date" className="form-label">Condition Diagnosis Date</label>
+                  <input
+                    id="diagnosis_date"
+                    type="date"
+                    value={formData.diagnosis_date}
+                    onChange={(e) => setFormData((p) => ({ ...p, diagnosis_date: e.target.value }))}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="condition_notes" className="form-label">Condition Notes</label>
+                  <textarea
+                    id="condition_notes"
+                    value={formData.condition_notes}
+                    onChange={(e) => setFormData((p) => ({ ...p, condition_notes: e.target.value }))}
+                    className="form-input form-textarea"
+                    rows={3}
                   />
                 </div>
               </div>

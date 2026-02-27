@@ -73,11 +73,17 @@ export default function Dashboard() {
           // PATIENT dashboard
           const { data: familyMembers, error: fmErr } = await supabase
             .from("family_members")
-            .select("id")
+            .select("id, relationship")
             .eq("user_id", currentUser.id);
           if (fmErr) throw fmErr;
-          const familyMemberIds = familyMembers?.map((row) => row.id) || [];
-          const familyMembersCount = familyMemberIds.length;
+          const allFamilyMembers = familyMembers || [];
+          const visibleFamilyMembers = allFamilyMembers.filter(
+            (member) => String(member.relationship || "").toLowerCase() !== "self"
+          );
+          const familyMembersCount = visibleFamilyMembers.length;
+          const selfMember = allFamilyMembers.find(
+            (member) => String(member.relationship || "").toLowerCase() === "self"
+          );
 
           const { count: appointmentCount, error: apptErr } = await supabase
             .from("appointments")
@@ -87,11 +93,11 @@ export default function Dashboard() {
           if (apptErr) console.warn("Appointments count skipped:", apptErr.message);
 
           let healthRecordsCount = 0;
-          if (familyMemberIds.length > 0) {
+          if (selfMember?.id) {
             const { count, error: mhErr } = await supabase
               .from("medical_history")
               .select("*", { count: "exact", head: true })
-              .in("family_member_id", familyMemberIds);
+              .eq("family_member_id", selfMember.id);
             if (mhErr) console.warn("Medical history count skipped:", mhErr.message);
             healthRecordsCount = count || 0;
           }
