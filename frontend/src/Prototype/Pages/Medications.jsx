@@ -53,31 +53,6 @@ export default function Medications() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, viewMode, profile?.patient_code]);
 
-  function isMissingColumnError(error) {
-    if (!error) return false;
-    const msg = String(error.message || "").toLowerCase();
-    const details = String(error.details || "").toLowerCase();
-    return (
-      error.code === "42703" ||
-      msg.includes("column") && msg.includes("does not exist") ||
-      msg.includes("could not find the") && msg.includes("column") ||
-      details.includes("column")
-    );
-  }
-
-  async function fetchWithFilter(column, value) {
-    if (value === undefined || value === null || value === "") {
-      return { data: [], error: null };
-    }
-
-    let q = supabase.from("medications").select("*").eq(column, value);
-    q = q
-      .order("start_date", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false });
-
-    return q;
-  }
-
   async function fetchMedications() {
     if (!currentUser?.id) {
       setPageError("Please log in to view medications");
@@ -89,75 +64,53 @@ export default function Medications() {
       setLoading(true);
       setPageError(null);
 
-      let rows = [];
+      const { data, error } = await supabase
+        .from("medications")
+        .select("*")
+        .order("start_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
 
+      if (error) {
+        if (error.code === "PGRST205") {
+          setMedicationsAvailable(false);
+          setPageError("Medications module is not configured yet in the database.");
+          setMedications([]);
+          return;
+        }
+        throw error;
+      }
+
+      let rows = data || [];
+
+      // Keep UI role-specific even if RLS is relaxed.
       if (viewMode === "patient") {
-        const attempts = [
-          ["patient_id", currentUser.id],
-          ["user_id", currentUser.id],
-          ["prescribed_for_patient", currentUser.id],
-          ["prescribed_for_patient", profile?.patient_code || ""],
-        ];
-
-        for (const [column, value] of attempts) {
-          const { data, error } = await fetchWithFilter(column, value);
-          if (error) {
-            if (error.code === "PGRST205") {
-              setMedicationsAvailable(false);
-              setPageError("Medications module is not configured yet in the database.");
-              setMedications([]);
-              return;
-            }
-            if (isMissingColumnError(error)) continue;
-            throw error;
+        rows = rows.filter((row) => {
+          if (row.patient_id) return row.patient_id === currentUser.id;
+          if (row.user_id) return row.user_id === currentUser.id;
+          if (row.prescribed_for_patient) {
+            return (
+              row.prescribed_for_patient === currentUser.id ||
+              row.prescribed_for_patient === (profile?.patient_code || "")
+            );
           }
-          if (data?.length) rows = rows.concat(data);
-        }
+          return true;
+        });
       } else {
-        const attempts = [
-          ["doctor_id", currentUser.id],
-          ["prescribed_by", currentUser.id],
-        ];
-
-        let gotAnyWorkingColumn = false;
-        for (const [column, value] of attempts) {
-          const { data, error } = await fetchWithFilter(column, value);
-          if (error) {
-            if (error.code === "PGRST205") {
-              setMedicationsAvailable(false);
-              setPageError("Medications module is not configured yet in the database.");
-              setMedications([]);
-              return;
-            }
-            if (isMissingColumnError(error)) continue;
-            throw error;
-          }
-          gotAnyWorkingColumn = true;
-          if (data?.length) rows = rows.concat(data);
-        }
-
-        if (!gotAnyWorkingColumn) {
-          throw new Error("Unable to query medications with current schema.");
-        }
+        rows = rows.filter((row) => {
+          if (row.doctor_id) return row.doctor_id === currentUser.id;
+          if (row.prescribed_by) return row.prescribed_by === currentUser.id;
+          return true;
+        });
       }
 
-      const deduped = [];
-      const seen = new Set();
-      for (const row of rows) {
-        const key = row?.id ?? `${row?.medication_name || ""}|${row?.start_date || ""}|${row?.created_at || ""}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deduped.push(row);
-      }
-
-      deduped.sort((a, b) => {
+      rows.sort((a, b) => {
         const aDate = new Date(a?.start_date || a?.created_at || 0).getTime();
         const bDate = new Date(b?.start_date || b?.created_at || 0).getTime();
         return bDate - aDate;
       });
 
       setMedicationsAvailable(true);
-      setMedications(deduped);
+      setMedications(rows);
     } catch (err) {
       console.error("Error fetching medications:", err);
       setPageError(err?.message || "Unable to load medications");
