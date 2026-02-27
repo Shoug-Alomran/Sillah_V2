@@ -18,7 +18,7 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
 
-  const todayISO = useMemo(() => new Date().toISOString(), []);
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,14 +30,13 @@ export default function Dashboard() {
         setLoading(true);
 
         if (isDoctor) {
-          // Patients assigned to this doctor
-          const { count: patientCount, error: dpErr } = await supabase
+          const { data: assignedPatients, error: dpErr } = await supabase
             .from("doctor_patient")
-            .select("*", { count: "exact", head: true })
-            .eq("doctor_id", currentUser.id)
-            .eq("status", "active");
-
+            .select("patient_id")
+            .eq("doctor_id", currentUser.id);
           if (dpErr) throw dpErr;
+          const patientIds = assignedPatients?.map((row) => row.patient_id).filter(Boolean) || [];
+          const patientCount = patientIds.length;
 
           // Upcoming appointments for this doctor
           const { count: appointmentCount, error: apptErr } = await supabase
@@ -52,18 +51,8 @@ export default function Dashboard() {
             console.warn("Appointments count skipped:", apptErr.message);
           }
 
-          // High risk count (best effort): risk_alerts for doctor’s patients
-          // If your risk_alerts table has patient_id and/or doctor_id, adjust accordingly.
           let highRiskCount = 0;
-          const { data: assigned, error: assignedErr } = await supabase
-            .from("doctor_patient")
-            .select("patient_id")
-            .eq("doctor_id", currentUser.id)
-            .eq("status", "active");
-
-          if (!assignedErr && assigned?.length) {
-            const patientIds = assigned.map((r) => r.patient_id);
-
+          if (patientIds.length > 0) {
             const { count: riskCount, error: riskErr } = await supabase
               .from("risk_alerts")
               .select("*", { count: "exact", head: true })
@@ -82,11 +71,13 @@ export default function Dashboard() {
           }
         } else {
           // PATIENT dashboard
-          const { count: familyMembersCount, error: fmErr } = await supabase
+          const { data: familyMembers, error: fmErr } = await supabase
             .from("family_members")
-            .select("*", { count: "exact", head: true })
+            .select("id")
             .eq("user_id", currentUser.id);
           if (fmErr) throw fmErr;
+          const familyMemberIds = familyMembers?.map((row) => row.id) || [];
+          const familyMembersCount = familyMemberIds.length;
 
           const { count: appointmentCount, error: apptErr } = await supabase
             .from("appointments")
@@ -95,26 +86,41 @@ export default function Dashboard() {
             .gte("appointment_date", todayISO);
           if (apptErr) console.warn("Appointments count skipped:", apptErr.message);
 
-          const { count: healthRecordsCount, error: mhErr } = await supabase
-            .from("medical_history")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", currentUser.id);
-          if (mhErr) console.warn("Medical history count skipped:", mhErr.message);
+          let healthRecordsCount = 0;
+          if (familyMemberIds.length > 0) {
+            const { count, error: mhErr } = await supabase
+              .from("medical_history")
+              .select("*", { count: "exact", head: true })
+              .in("family_member_id", familyMemberIds);
+            if (mhErr) console.warn("Medical history count skipped:", mhErr.message);
+            healthRecordsCount = count || 0;
+          }
 
-          const { count: unreadAlertsCount, error: raErr } = await supabase
+          let unreadAlertsCount = 0;
+          const { count: unreadCount, error: raErr } = await supabase
             .from("risk_alerts")
             .select("*", { count: "exact", head: true })
             .eq("patient_id", currentUser.id)
             .eq("is_read", false);
-          if (raErr) console.warn("Unread alerts count skipped:", raErr.message);
+
+          if (raErr) {
+            const { count: fallbackCount, error: fallbackErr } = await supabase
+              .from("risk_alerts")
+              .select("*", { count: "exact", head: true })
+              .eq("patient_id", currentUser.id);
+            if (fallbackErr) console.warn("Unread alerts count skipped:", fallbackErr.message);
+            unreadAlertsCount = fallbackCount || 0;
+          } else {
+            unreadAlertsCount = unreadCount || 0;
+          }
 
           if (!cancelled) {
             setStats((s) => ({
               ...s,
-              familyMembersCount: familyMembersCount || 0,
+              familyMembersCount,
               appointmentCount: appointmentCount || 0,
-              healthRecordsCount: healthRecordsCount || 0,
-              unreadAlertsCount: unreadAlertsCount || 0
+              healthRecordsCount,
+              unreadAlertsCount
             }));
           }
         }

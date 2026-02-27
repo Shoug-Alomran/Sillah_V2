@@ -42,16 +42,6 @@ export default function Signup() {
     return cleaned;
   }
 
-  async function waitForSession({ timeoutMs = 6000, intervalMs = 250 } = {}) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      const { data, error } = await supabase.auth.getSession();
-      if (!error && data?.session) return data.session;
-      await new Promise((r) => setTimeout(r, intervalMs));
-    }
-    return null;
-  }
-
   // ---------- Fetch doctors for patient signup ----------
   useEffect(() => {
     let cancelled = false;
@@ -130,55 +120,23 @@ export default function Signup() {
       setLoading(true);
 
       // 1) Create auth user + set metadata (trigger will create/patch profiles)
-      const result = await signup({
+      const { session } = await signup({
         email: trimmedEmail,
         password,
         fullName: trimmedName,
         phoneNumber: cleanPhone,
         role: userType,
-        selectedDoctorId: userType === "patient" ? selectedDoctor || null : null,
+        selected_doctor_id: userType === "patient" ? selectedDoctor || null : null
       });
 
-      // Some AuthContext implementations return nothing.
-      // We’ll detect confirmation status by checking session after signUp.
-
-      // 2) If email confirmation is OFF, we can log in immediately.
-      //    If email confirmation is ON, signInWithPassword will fail until email verified.
-      //    So: attempt login, but handle "email not confirmed" gracefully.
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
-
-      if (loginError) {
-        // Common when email confirmations are ON
-        const msg = String(loginError.message || "").toLowerCase();
-        const looksLikeConfirm =
-          msg.includes("confirm") ||
-          msg.includes("verified") ||
-          msg.includes("not confirmed");
-
-        if (looksLikeConfirm) {
-          setInfo(
-            "Account created. Please check your email to confirm your account, then login."
-          );
-          navigate("/login");
-          return;
-        }
-
-        throw loginError;
-      }
-
-      // 3) Wait for session to actually exist (prevents “stuck / dashboard errors”)
-      const session = await waitForSession();
+      // Email confirmation is expected OFF, but keep a safe fallback.
       if (!session) {
-        // Fallback: still send to login instead of leaving them stuck
         setInfo("Account created. Please login to continue.");
         navigate("/login");
         return;
       }
 
-      // 4) Go to dashboard for BOTH patient and doctor
+      // Go to dashboard for BOTH patient and doctor
       navigate("/dashboard");
     } catch (e) {
       console.error(e);

@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
       .from("profiles")
       .select("id,email,full_name,phone_number,role,selected_doctor_id,patient_code,created_at")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       setProfile(null);
@@ -42,7 +42,16 @@ export function AuthProvider({ children }) {
   }
 
   async function signup(payload) {
-    const { email, password, fullName, phoneNumber, role, selectedDoctorId } = payload;
+    const {
+      email,
+      password,
+      fullName,
+      phoneNumber,
+      role,
+      selectedDoctorId,
+      selected_doctor_id
+    } = payload;
+    const selectedDoctor = selected_doctor_id ?? selectedDoctorId ?? null;
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -52,21 +61,52 @@ export function AuthProvider({ children }) {
           full_name: fullName,
           phone_number: phoneNumber || "",
           role,
-          selected_doctor_id: role === "patient" ? (selectedDoctorId || "") : ""
+          selected_doctor_id: role === "patient" ? selectedDoctor : null
         }
       }
     });
 
     if (error) throw error;
 
-    // If email confirmation is OFF, you may get a session immediately.
-    // If it’s ON, session will be null until email is confirmed.
-    if (data?.session?.user) {
-      setCurrentUser(data.session.user);
-      await loadProfile(data.session.user.id);
+    let session = data?.session ?? null;
+
+    if (!session) {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      if (signInError) throw signInError;
+      session = signInData?.session ?? null;
     }
 
-    return data.user;
+    const user = session?.user ?? data?.user ?? null;
+    if (!user) throw new Error("Could not establish an authenticated session after signup.");
+
+    setCurrentUser(user);
+
+    const profilePayload = {
+      id: user.id,
+      email,
+      full_name: fullName,
+      phone_number: phoneNumber || null,
+      role,
+      selected_doctor_id: role === "patient" ? selectedDoctor : null
+    };
+
+    const { error: profileUpsertError } = await supabase
+      .from("profiles")
+      .upsert(profilePayload, { onConflict: "id" });
+    if (profileUpsertError) throw profileUpsertError;
+
+    if (role === "patient" && selectedDoctor) {
+      const { error: relationError } = await supabase
+        .from("doctor_patient")
+        .upsert({ doctor_id: selectedDoctor, patient_id: user.id }, { onConflict: "doctor_id,patient_id" });
+      if (relationError) throw relationError;
+    }
+
+    await loadProfile(user.id);
+    return { user, session };
   }
 
   async function logout() {
