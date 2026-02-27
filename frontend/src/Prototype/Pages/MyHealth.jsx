@@ -1,19 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Heart, Plus, Calendar, FileText, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
+import { Heart, Plus, Calendar, Edit, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
 const EMPTY_FORM = {
-  family_member_id: "",
   condition_name: "",
   diagnosis_date: "",
   notes: ""
 };
 
 export default function MyHealth() {
-  const { currentUser, isPatient } = useAuth();
+  const { currentUser, profile, isPatient } = useAuth();
 
-  const [familyMembers, setFamilyMembers] = useState([]);
+  const [selfMember, setSelfMember] = useState(null);
   const [healthRecords, setHealthRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,6 +24,36 @@ export default function MyHealth() {
 
   useEffect(() => {
     let cancelled = false;
+
+    async function ensureSelfFamilyMember() {
+      if (!currentUser?.id) return null;
+
+      const { data: members, error: membersError } = await supabase
+        .from("family_members")
+        .select("id, user_id, full_name, relationship")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: true });
+
+      if (membersError) throw membersError;
+
+      const existingSelf = (members || []).find((m) => String(m.relationship || "").toLowerCase() === "self");
+      if (existingSelf) return existingSelf;
+
+      const { data: created, error: createError } = await supabase
+        .from("family_members")
+        .insert({
+          user_id: currentUser.id,
+          full_name: profile?.full_name || "Me",
+          relationship: "Self",
+          gender: null,
+          date_of_birth: null
+        })
+        .select("id, user_id, full_name, relationship")
+        .single();
+
+      if (createError) throw createError;
+      return created;
+    }
 
     async function fetchData() {
       if (!currentUser?.id) {
@@ -47,32 +76,21 @@ export default function MyHealth() {
         setLoading(true);
         setError("");
 
-        const { data: members, error: membersError } = await supabase
-          .from("family_members")
-          .select("id, full_name, relationship")
-          .eq("user_id", currentUser.id)
+        const me = await ensureSelfFamilyMember();
+        if (!me?.id) throw new Error("Unable to initialize your personal health profile.");
+
+        const { data: history, error: historyError } = await supabase
+          .from("medical_history")
+          .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+          .eq("family_member_id", me.id)
+          .order("diagnosis_date", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false });
 
-        if (membersError) throw membersError;
-
-        const memberIds = (members || []).map((m) => m.id);
-
-        let records = [];
-        if (memberIds.length > 0) {
-          const { data: history, error: historyError } = await supabase
-            .from("medical_history")
-            .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
-            .in("family_member_id", memberIds)
-            .order("diagnosis_date", { ascending: false, nullsFirst: false })
-            .order("created_at", { ascending: false });
-
-          if (historyError) throw historyError;
-          records = history || [];
-        }
+        if (historyError) throw historyError;
 
         if (!cancelled) {
-          setFamilyMembers(members || []);
-          setHealthRecords(records);
+          setSelfMember(me);
+          setHealthRecords(history || []);
         }
       } catch (e) {
         console.error("Error fetching health records:", e);
@@ -89,13 +107,7 @@ export default function MyHealth() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, isPatient]);
-
-  const memberNameById = useMemo(() => {
-    const map = new Map();
-    familyMembers.forEach((m) => map.set(m.id, m.full_name || "Family Member"));
-    return map;
-  }, [familyMembers]);
+  }, [currentUser?.id, isPatient, profile?.full_name]);
 
   const resetForm = () => {
     setFormData(EMPTY_FORM);
@@ -104,16 +116,12 @@ export default function MyHealth() {
 
   const openAdd = () => {
     resetForm();
-    if (familyMembers.length === 1) {
-      setFormData((prev) => ({ ...prev, family_member_id: familyMembers[0].id }));
-    }
     setShowAddModal(true);
   };
 
   const openEdit = (record) => {
     setEditingRecord(record);
     setFormData({
-      family_member_id: record.family_member_id || "",
       condition_name: record.condition_name || "",
       diagnosis_date: record.diagnosis_date || "",
       notes: record.notes || ""
@@ -129,8 +137,8 @@ export default function MyHealth() {
   const handleSave = async (e) => {
     e.preventDefault();
 
-    if (!formData.family_member_id || !formData.condition_name.trim()) {
-      alert("Family member and condition are required.");
+    if (!selfMember?.id || !formData.condition_name.trim()) {
+      alert("Condition/diagnosis is required.");
       return;
     }
 
@@ -138,7 +146,7 @@ export default function MyHealth() {
       setSaving(true);
 
       const payload = {
-        family_member_id: formData.family_member_id,
+        family_member_id: selfMember.id,
         condition_name: formData.condition_name.trim(),
         diagnosis_date: formData.diagnosis_date || null,
         notes: formData.notes?.trim() || null
@@ -149,6 +157,7 @@ export default function MyHealth() {
           .from("medical_history")
           .update(payload)
           .eq("id", editingRecord.id)
+          .eq("family_member_id", selfMember.id)
           .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
           .single();
 
@@ -177,13 +186,15 @@ export default function MyHealth() {
   };
 
   const handleDelete = async (recordId) => {
+    if (!selfMember?.id) return;
     if (!window.confirm("Are you sure you want to delete this health record?")) return;
 
     try {
       const { error: deleteError } = await supabase
         .from("medical_history")
         .delete()
-        .eq("id", recordId);
+        .eq("id", recordId)
+        .eq("family_member_id", selfMember.id);
 
       if (deleteError) throw deleteError;
       setHealthRecords((prev) => prev.filter((r) => r.id !== recordId));
@@ -203,6 +214,8 @@ export default function MyHealth() {
       day: "numeric"
     });
   };
+
+  const profileName = useMemo(() => selfMember?.full_name || profile?.full_name || "You", [selfMember?.full_name, profile?.full_name]);
 
   if (loading) {
     return (
@@ -241,26 +254,20 @@ export default function MyHealth() {
               <Heart className="title-icon" />
               My Health Records
             </h1>
-            <p className="my-health-subtitle">Track conditions across your family members</p>
+            <p className="my-health-subtitle">Track your personal conditions and diagnoses ({profileName})</p>
           </div>
 
-          <button onClick={openAdd} className="add-record-btn" disabled={familyMembers.length === 0}>
+          <button onClick={openAdd} className="add-record-btn" disabled={!selfMember?.id}>
             <Plus className="btn-icon" />
             Add Health Record
           </button>
         </header>
 
-        {familyMembers.length === 0 ? (
-          <div className="empty-state">
-            <Users className="empty-icon" />
-            <p className="empty-title">No Family Members Yet</p>
-            <p className="empty-text">Add family members first, then you can add medical history records.</p>
-          </div>
-        ) : healthRecords.length === 0 ? (
+        {healthRecords.length === 0 ? (
           <div className="empty-state">
             <Heart className="empty-icon" />
             <p className="empty-title">No Health Records Yet</p>
-            <p className="empty-text">Start tracking conditions by adding your first record.</p>
+            <p className="empty-text">Start tracking your own health conditions by adding your first record.</p>
             <button onClick={openAdd} className="empty-action-btn">
               <Plus className="empty-action-icon" />
               Add Your First Health Record
@@ -290,11 +297,6 @@ export default function MyHealth() {
                 </div>
 
                 <div className="health-card-content">
-                  <div className="health-info-row">
-                    <strong>Family Member:</strong>
-                    <span>{memberNameById.get(record.family_member_id) || "Unknown"}</span>
-                  </div>
-
                   {record.notes && (
                     <div className="health-notes-section">
                       <strong>Notes:</strong>
@@ -318,24 +320,6 @@ export default function MyHealth() {
 
             <form onSubmit={handleSave} className="modal-body">
               <div className="form-content">
-                <div className="form-field">
-                  <label htmlFor="family_member_id" className="form-label">Family Member *</label>
-                  <select
-                    id="family_member_id"
-                    value={formData.family_member_id}
-                    onChange={(e) => setFormData((p) => ({ ...p, family_member_id: e.target.value }))}
-                    className="form-input"
-                    required
-                  >
-                    <option value="">Select a family member</option>
-                    {familyMembers.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.full_name} ({member.relationship || "relation"})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="form-field">
                   <label htmlFor="condition_name" className="form-label">Condition/Diagnosis *</label>
                   <input

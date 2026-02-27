@@ -10,6 +10,22 @@ const EMPTY_FORM = {
   date_of_birth: ""
 };
 
+const RELATIONSHIP_OPTIONS = [
+  "Father",
+  "Mother",
+  "Brother",
+  "Sister",
+  "Son",
+  "Daughter",
+  "Grandfather",
+  "Grandmother",
+  "Uncle",
+  "Aunt",
+  "Cousin",
+  "Spouse",
+  "Other"
+];
+
 export default function FamilyTree() {
   const { currentUser, isPatient } = useAuth();
 
@@ -70,15 +86,22 @@ export default function FamilyTree() {
   }, [currentUser?.id, isPatient]);
 
   const filteredMembers = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return familyMembers;
+    const visibleMembers = familyMembers.filter(
+      (member) => String(member.relationship || "").toLowerCase() !== "self"
+    );
 
-    return familyMembers.filter((member) =>
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return visibleMembers;
+
+    return visibleMembers.filter((member) =>
       [member.full_name, member.relationship, member.gender]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q))
     );
   }, [familyMembers, searchTerm]);
+  const hasVisibleMembers = familyMembers.some(
+    (member) => String(member.relationship || "").toLowerCase() !== "self"
+  );
 
   function openCreateModal() {
     setEditingMember(null);
@@ -235,7 +258,7 @@ export default function FamilyTree() {
           />
         </div>
 
-        {familyMembers.length === 0 ? (
+        {!hasVisibleMembers ? (
           <div className="empty-state">
             <Users className="empty-icon" />
             <p className="empty-title">No Family Members Added Yet</p>
@@ -308,14 +331,20 @@ export default function FamilyTree() {
 
                 <div className="form-field">
                   <label htmlFor="relationship" className="form-label">Relationship *</label>
-                  <input
+                  <select
                     id="relationship"
-                    type="text"
                     value={formData.relationship}
                     onChange={(e) => setFormData((p) => ({ ...p, relationship: e.target.value }))}
                     className="form-input"
                     required
-                  />
+                  >
+                    <option value="">Select relationship</option>
+                    {RELATIONSHIP_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="form-field">
