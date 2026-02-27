@@ -78,7 +78,6 @@ export default function Appointments() {
 
         const { data, error: fetchError } = await query
           .order("appointment_date", { ascending: false, nullsFirst: false })
-          .order("appointment_time", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false });
 
         if (fetchError) throw fetchError;
@@ -170,12 +169,13 @@ export default function Appointments() {
         doctor_id: doctorId,
         clinic_name: bookingForm.clinic_name,
         appointment_date: bookingForm.appointment_date,
-        appointment_time: bookingForm.appointment_time,
         location: bookingForm.location || null,
         address: bookingForm.address || null,
         phone: bookingForm.phone || null,
         reason: bookingForm.reason || null,
-        notes: bookingForm.notes || null,
+        notes: [bookingForm.notes, bookingForm.appointment_time ? `Time: ${bookingForm.appointment_time}` : ""]
+          .filter(Boolean)
+          .join(" | ") || null,
         status: "scheduled"
       };
 
@@ -220,7 +220,7 @@ export default function Appointments() {
     try {
       const { error: updateError } = await supabase
         .from("appointments")
-        .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+        .update({ status: "cancelled" })
         .eq("id", appointmentId);
 
       if (updateError) throw updateError;
@@ -239,7 +239,7 @@ export default function Appointments() {
     try {
       const { error: updateError } = await supabase
         .from("appointments")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .update({ status: "completed" })
         .eq("id", appointmentId)
         .eq("doctor_id", currentUser.id);
 

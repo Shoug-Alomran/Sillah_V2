@@ -21,6 +21,7 @@ export default function Medications() {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
+  const [medicationsAvailable, setMedicationsAvailable] = useState(true);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
@@ -77,8 +78,17 @@ export default function Medications() {
         .order("created_at", { ascending: false });
 
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        if (error.code === "PGRST205") {
+          setMedicationsAvailable(false);
+          setPageError("Medications module is not configured yet in the database.");
+          setMedications([]);
+          return;
+        }
+        throw error;
+      }
 
+      setMedicationsAvailable(true);
       setMedications(data || []);
     } catch (err) {
       console.error("Error fetching medications:", err);
@@ -197,6 +207,7 @@ export default function Medications() {
   async function handleAddMedication(e) {
     e.preventDefault();
     if (!currentUser?.id) return;
+    if (!medicationsAvailable) return;
 
     // Basic validation
     if (!formData.medication_name.trim() || !formData.dosage.trim() || !formData.start_date) {
@@ -315,6 +326,7 @@ export default function Medications() {
   }
 
   async function handleDelete(medId) {
+    if (!medicationsAvailable) return;
     if (!window.confirm("Are you sure you want to delete this medication?")) return;
 
     try {
@@ -329,6 +341,7 @@ export default function Medications() {
   }
 
   async function handleToggleActive(med) {
+    if (!medicationsAvailable) return;
     try {
       const { data, error } = await supabase
         .from("medications")
@@ -393,7 +406,7 @@ export default function Medications() {
             </p>
           </div>
 
-          <button onClick={openCreateModal} className="add-medication-btn">
+          <button onClick={openCreateModal} className="add-medication-btn" disabled={!medicationsAvailable}>
             <Plus className="btn-icon" />
             {isDoctor ? "Prescribe Medication" : "Add Medication"}
           </button>
@@ -412,7 +425,7 @@ export default function Medications() {
                   ? "No active prescriptions. Start by prescribing a medication to a patient."
                   : "Add your medications to track them and receive reminders."}
               </p>
-              <button onClick={openCreateModal} className="empty-action-btn">
+              <button onClick={openCreateModal} className="empty-action-btn" disabled={!medicationsAvailable}>
                 <Plus className="empty-action-icon" />
                 {isDoctor ? "Prescribe Medication" : "Add Medication"}
               </button>
