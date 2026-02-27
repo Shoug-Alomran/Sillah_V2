@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 
+function normalizeRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.result)) return payload.result;
+  return [];
+}
+
 function Tabs({ tab, setTab }) {
   const tabs = ["Users", "Family Members", "Queries"];
   return (
@@ -39,7 +47,7 @@ function Users() {
     setErr("");
     try {
       const data = await api("/api/users");
-      setRows(data);
+      setRows(normalizeRows(data));
     } catch (e) {
       setErr(String(e.message || e));
     }
@@ -149,7 +157,7 @@ function FamilyMembers() {
     setErr("");
     try {
       const data = await api("/api/family-members");
-      setRows(data);
+      setRows(normalizeRows(data));
     } catch (e) {
       setErr(String(e.message || e));
     }
