@@ -46,6 +46,31 @@ function statusLabel(status) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+async function updateAppointmentStatusSafe({ appointmentId, doctorId, preferredStatuses }) {
+  let lastError = null;
+
+  for (const status of preferredStatuses) {
+    let query = supabase
+      .from("appointments")
+      .update({ status })
+      .eq("id", appointmentId);
+
+    if (doctorId) {
+      query = query.eq("doctor_id", doctorId);
+    }
+
+    const { error } = await query;
+    if (!error) return status;
+
+    lastError = error;
+    // Enum mismatch: try the next candidate.
+    if (error.code === "22P02") continue;
+    throw error;
+  }
+
+  throw lastError || new Error("Unable to update appointment status");
+}
+
 async function insertAppointment(basePayload) {
   const { data, error } = await supabase
     .from("appointments")
@@ -332,19 +357,39 @@ export default function Appointments() {
     if (!isDoctor) return;
 
     try {
-      const { error: updateError } = await supabase
-        .from("appointments")
-        .update({ status: "completed" })
-        .eq("id", appointmentId)
-        .eq("doctor_id", currentUser.id);
-
-      if (updateError) throw updateError;
+      await updateAppointmentStatusSafe({
+        appointmentId,
+        doctorId: currentUser.id,
+        preferredStatuses: ["completed"]
+      });
 
       setAppointments((prev) => prev.map((apt) => (apt.id === appointmentId ? { ...apt, status: "completed" } : apt)));
       alert("Appointment marked as completed");
     } catch (err) {
       console.error("Error completing appointment:", err);
       alert(err?.message || "Failed to complete appointment. Please try again.");
+    }
+  };
+
+  const handleConfirmAppointment = async (appointmentId) => {
+    if (!isDoctor) return;
+
+    try {
+      const chosenStatus = await updateAppointmentStatusSafe({
+        appointmentId,
+        doctorId: currentUser.id,
+        preferredStatuses: ["confirmed", "scheduled", "pending"]
+      });
+
+      setAppointments((prev) => prev.map((apt) => (apt.id === appointmentId ? { ...apt, status: chosenStatus } : apt)));
+      if (chosenStatus === "pending") {
+        alert("Appointment remains pending. Add 'confirmed' or 'scheduled' to appt_status enum to support explicit confirmation.");
+      } else {
+        alert("Appointment confirmed.");
+      }
+    } catch (err) {
+      console.error("Error confirming appointment:", err);
+      alert(err?.message || "Failed to confirm appointment. Please try again.");
     }
   };
 
@@ -545,6 +590,12 @@ export default function Appointments() {
 
                   {isDoctor && isUpcomingStatus(normalizedStatus) && (
                     <div className="appointment-actions">
+                      {normalizedStatus === "pending" && (
+                        <button onClick={() => handleConfirmAppointment(appointment.id)} className="complete-btn" style={{ marginRight: "0.5rem" }}>
+                          <CheckCircle className="complete-icon" />
+                          Confirm Appointment
+                        </button>
+                      )}
                       <button onClick={() => handleCompleteAppointment(appointment.id)} className="complete-btn">
                         <CheckCircle className="complete-icon" />
                         Mark as Completed
