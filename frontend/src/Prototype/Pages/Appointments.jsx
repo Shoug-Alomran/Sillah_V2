@@ -5,20 +5,46 @@ import { useLocation } from "react-router-dom";
 import { clinicsData } from "../../data/clinics";
 import { supabase } from "../../lib/supabaseClient";
 
+function toAppointmentTimestamp(dateStr, timeStr) {
+  if (!dateStr) return null;
+  if (!timeStr) return `${dateStr}T00:00:00`;
+
+  // Handles "HH:mm" from <input type="time"> and "h:mm AM/PM" from preset slots.
+  const amPmMatch = String(timeStr).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (amPmMatch) {
+    let hours = Number(amPmMatch[1]);
+    const minutes = amPmMatch[2];
+    const meridiem = amPmMatch[3].toUpperCase();
+    if (meridiem === "PM" && hours < 12) hours += 12;
+    if (meridiem === "AM" && hours === 12) hours = 0;
+    return `${dateStr}T${String(hours).padStart(2, "0")}:${minutes}:00`;
+  }
+
+  const hhmmMatch = String(timeStr).trim().match(/^(\d{2}):(\d{2})$/);
+  if (hhmmMatch) return `${dateStr}T${hhmmMatch[1]}:${hhmmMatch[2]}:00`;
+
+  return `${dateStr}T00:00:00`;
+}
+
+function appointmentTimeLabel(appointment) {
+  if (appointment.appointment_time) return appointment.appointment_time;
+  if (!appointment.appointment_date) return "N/A";
+  const parsed = new Date(appointment.appointment_date);
+  if (Number.isNaN(parsed.getTime())) return "N/A";
+  return parsed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 async function insertAppointmentSchemaSafe(basePayload) {
   const payloadVariants = [
     basePayload,
     // Fallback: remove optional location fields that may not exist in some schemas
     (({ address, phone, location, ...rest }) => rest)(basePayload),
-    // Final fallback: keep only core fields
-    (({ patient_id, patient_name, doctor_id, clinic_name, appointment_date, reason, notes, status }) => ({
+    // Fallback for strict appointments schema (no clinic_name/reason/notes/etc)
+    (({ patient_id, doctor_id, appointment_date, status }) => ({
       patient_id,
-      patient_name,
       doctor_id,
-      clinic_name,
       appointment_date,
-      reason,
-      notes,
+      clinic_id: null,
       status
     }))(basePayload)
   ];
@@ -205,7 +231,7 @@ export default function Appointments() {
         patient_name: profile?.full_name || "Patient",
         doctor_id: doctorId,
         clinic_name: bookingForm.clinic_name,
-        appointment_date: bookingForm.appointment_date,
+        appointment_date: toAppointmentTimestamp(bookingForm.appointment_date, bookingForm.appointment_time),
         location: bookingForm.location || null,
         address: bookingForm.address || null,
         phone: bookingForm.phone || null,
@@ -402,7 +428,7 @@ export default function Appointments() {
               <div key={appointment.id} className="appointment-card">
                 <div className="appointment-header">
                   <div className="appointment-header-content">
-                    <h2 className="appointment-clinic">{appointment.clinic_name}</h2>
+                    <h2 className="appointment-clinic">{appointment.clinic_name || "Clinic Appointment"}</h2>
                     <span
                       className="appointment-badge"
                       style={{
@@ -450,7 +476,7 @@ export default function Appointments() {
                     </div>
                     <div className="appointment-info-item">
                       <Clock className="info-icon" />
-                      <span className="info-text">{appointment.appointment_time || "N/A"}</span>
+                      <span className="info-text">{appointmentTimeLabel(appointment)}</span>
                     </div>
                     <div className="appointment-info-item">
                       <MapPin className="info-icon" />
