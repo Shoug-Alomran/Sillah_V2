@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Calendar, MapPin, Clock, User, X, CheckCircle, AlertTriangle, Plus, Phone, Star } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLocation } from "react-router-dom";
@@ -62,6 +62,8 @@ export default function Appointments() {
   const { currentUser, isDoctor, isPatient } = useAuth();
 
   const [appointments, setAppointments] = useState([]);
+  const [clinics, setClinics] = useState([]);
+  const [clinicsError, setClinicsError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
@@ -83,13 +85,67 @@ export default function Appointments() {
   const incomingClinic = location.state?.clinic;
   const isBooking = location.state?.isBooking;
 
+  const clinicsById = useMemo(() => {
+    const map = new Map();
+    clinics.forEach((clinic) => map.set(String(clinic.id), clinic));
+    return map;
+  }, [clinics]);
+
+  function enrichClinic(clinicRow) {
+    if (!clinicRow) return null;
+    const staticMatch = clinicsData.find((c) => c.name === clinicRow.name);
+    return {
+      ...staticMatch,
+      ...clinicRow,
+      id: clinicRow.id,
+      name: clinicRow.name,
+      location: clinicRow.location || staticMatch?.location || "",
+      specialty: staticMatch?.specialty || "General Practice",
+      address: staticMatch?.address || clinicRow.location || "Location details unavailable",
+      phone: clinicRow.contact_number || staticMatch?.phone || "Contact unavailable",
+      rating: staticMatch?.rating ?? null,
+      reviews: staticMatch?.reviews ?? null,
+      hours: staticMatch?.hours || "Hours unavailable",
+      available_slots: staticMatch?.available_slots || []
+    };
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchClinics() {
+      try {
+        setClinicsError("");
+        const { data, error: fetchError } = await supabase
+          .from("clinics")
+          .select("id, name, location, contact_number, created_at")
+          .order("created_at", { ascending: false });
+
+        if (fetchError) throw fetchError;
+        if (!cancelled) setClinics(data || []);
+      } catch (err) {
+        console.error("Error loading clinics:", err);
+        if (!cancelled) {
+          setClinics([]);
+          setClinicsError(err?.message || "Unable to load clinics");
+        }
+      }
+    }
+
+    fetchClinics();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (isBooking && incomingClinic && isPatient) {
-      const clinic = clinicsData.find((c) => c.name === incomingClinic.name);
-      if (clinic) {
+      const clinicFromDb = clinics.find((c) => c.name === incomingClinic.name);
+      if (clinicFromDb) {
+        const clinic = enrichClinic(clinicFromDb);
         setSelectedClinic(clinic);
         setBookingForm({
-          clinic_id: clinic.db_id || "",
+          clinic_id: clinic.id,
           clinic_name: clinic.name,
           appointment_date: "",
           appointment_time: "",
@@ -102,7 +158,7 @@ export default function Appointments() {
       }
       setShowBookingModal(true);
     }
-  }, [isBooking, incomingClinic, isPatient]);
+  }, [isBooking, incomingClinic, isPatient, clinics]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,13 +209,13 @@ export default function Appointments() {
 
   const handleClinicSelect = (e) => {
     const clinicId = e.target.value;
-    const clinic = clinicsData.find((c) => String(c.db_id) === String(clinicId));
+    const clinic = enrichClinic(clinicsById.get(String(clinicId)));
 
     if (clinic) {
       setSelectedClinic(clinic);
       setBookingForm((prev) => ({
         ...prev,
-        clinic_id: clinic.db_id || "",
+        clinic_id: clinic.id || "",
         clinic_name: clinic.name,
         location: clinic.location,
         address: clinic.address,
@@ -408,7 +464,7 @@ export default function Appointments() {
           ) : (
             filteredAppointments.map((appointment) => {
               const normalizedStatus = String(appointment.status || "pending").toLowerCase();
-              const clinicMeta = clinicsData.find((c) => String(c.db_id) === String(appointment.clinic_id));
+              const clinicMeta = enrichClinic(clinicsById.get(String(appointment.clinic_id)));
               return (
               <div key={appointment.id} className="appointment-card">
                 <div className="appointment-header">
@@ -517,14 +573,31 @@ export default function Appointments() {
                     <MapPin className="form-label-icon" />
                     Select Clinic *
                   </label>
-                  <select id="clinic_select" value={bookingForm.clinic_id} onChange={handleClinicSelect} className="form-input" required>
+                  <select
+                    id="clinic_select"
+                    value={bookingForm.clinic_id}
+                    onChange={handleClinicSelect}
+                    className="form-input"
+                    required
+                    disabled={clinics.length === 0}
+                  >
                     <option value="">-- Choose a clinic --</option>
-                    {clinicsData.map((clinic) => (
-                      <option key={clinic.id} value={clinic.db_id}>
+                    {clinics.map((clinicRow) => {
+                      const clinic = enrichClinic(clinicRow);
+                      return (
+                      <option key={clinic.id} value={clinic.id}>
                         {clinic.name} - {clinic.location} ({clinic.specialty})
                       </option>
-                    ))}
+                    )})}
                   </select>
+                  {clinics.length === 0 && (
+                    <p style={{ color: "#b91c1c", fontSize: "0.875rem", marginTop: "0.5rem" }}>
+                      No clinics available in the database yet. Add clinics in `public.clinics` to enable booking.
+                    </p>
+                  )}
+                  {clinicsError && (
+                    <p style={{ color: "#b91c1c", fontSize: "0.875rem", marginTop: "0.5rem" }}>{clinicsError}</p>
+                  )}
                 </div>
 
                 {selectedClinic && (
