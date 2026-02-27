@@ -8,7 +8,8 @@ const EMPTY_FORM = {
   relationship: "",
   gender: "",
   date_of_birth: "",
-  condition_name: "",
+  condition_selection: "",
+  custom_condition: "",
   diagnosis_date: "",
   condition_notes: ""
 };
@@ -26,6 +27,18 @@ const RELATIONSHIP_OPTIONS = [
   "Aunt",
   "Cousin",
   "Spouse",
+  "Other"
+];
+
+const CONDITION_OPTIONS = [
+  "Sickle Cell Disease",
+  "Sickle Cell Trait",
+  "Thalassemia",
+  "G6PD Deficiency",
+  "Diabetes",
+  "Hypertension",
+  "Heart Disease",
+  "Asthma",
   "Other"
 ];
 
@@ -131,6 +144,13 @@ export default function FamilyTree() {
     (member) => String(member.relationship || "").toLowerCase() !== "self"
   );
 
+  function mapConditionToForm(conditionName) {
+    const name = String(conditionName || "").trim();
+    if (!name) return { condition_selection: "", custom_condition: "" };
+    if (CONDITION_OPTIONS.includes(name)) return { condition_selection: name, custom_condition: "" };
+    return { condition_selection: "Other", custom_condition: name };
+  }
+
   function openCreateModal() {
     setEditingMember(null);
     setFormData(EMPTY_FORM);
@@ -139,12 +159,15 @@ export default function FamilyTree() {
 
   function openEditModal(member) {
     setEditingMember(member);
+    const latestCondition = latestConditionsByMember[member.id]?.condition_name || "";
+    const mappedCondition = mapConditionToForm(latestCondition);
     setFormData({
       full_name: member.full_name || "",
       relationship: member.relationship || "",
       gender: member.gender || "",
       date_of_birth: member.date_of_birth || "",
-      condition_name: latestConditionsByMember[member.id]?.condition_name || "",
+      condition_selection: mappedCondition.condition_selection,
+      custom_condition: mappedCondition.custom_condition,
       diagnosis_date: latestConditionsByMember[member.id]?.diagnosis_date || "",
       condition_notes: latestConditionsByMember[member.id]?.notes || ""
     });
@@ -220,8 +243,19 @@ export default function FamilyTree() {
 
       if (savedMember?.id) {
         const existingCondition = latestConditionsByMember[savedMember.id];
+        const conditionName =
+          formData.condition_selection === "Other"
+            ? formData.custom_condition.trim()
+            : formData.condition_selection.trim();
+
+        if (formData.condition_selection === "Other" && !conditionName) {
+          alert("Please enter the condition name for Other.");
+          setSaving(false);
+          return;
+        }
+
         const conditionPayload = {
-          condition_name: formData.condition_name.trim(),
+          condition_name: conditionName,
           diagnosis_date: formData.diagnosis_date || null,
           notes: formData.condition_notes?.trim() || null
         };
@@ -485,15 +519,34 @@ export default function FamilyTree() {
 
                 <div className="form-field">
                   <label htmlFor="condition_name" className="form-label">Condition / Diagnosis (Optional)</label>
-                  <input
+                  <select
                     id="condition_name"
-                    type="text"
-                    value={formData.condition_name}
-                    onChange={(e) => setFormData((p) => ({ ...p, condition_name: e.target.value }))}
+                    value={formData.condition_selection}
+                    onChange={(e) => setFormData((p) => ({ ...p, condition_selection: e.target.value }))}
                     className="form-input"
-                    placeholder="e.g., Sickle Cell Disease, Diabetes"
-                  />
+                  >
+                    <option value="">Select condition</option>
+                    {CONDITION_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                {formData.condition_selection === "Other" && (
+                  <div className="form-field">
+                    <label htmlFor="custom_condition" className="form-label">Other Condition Name</label>
+                    <input
+                      id="custom_condition"
+                      type="text"
+                      value={formData.custom_condition}
+                      onChange={(e) => setFormData((p) => ({ ...p, custom_condition: e.target.value }))}
+                      className="form-input"
+                      placeholder="Enter uncommon condition name"
+                    />
+                  </div>
+                )}
 
                 <div className="form-field">
                   <label htmlFor="diagnosis_date" className="form-label">Condition Diagnosis Date</label>
