@@ -22,19 +22,41 @@ export default function Signup() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [userType, setUserType] = useState("patient"); // "patient" | "doctor"
   const [selectedDoctor, setSelectedDoctor] = useState("");
+
   const [doctors, setDoctors] = useState([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
+
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
 
   const { signup } = useAuth();
   const navigate = useNavigate();
 
+  // ---------- Helpers ----------
+  function normalizePhone(input) {
+    const v = String(input || "").trim();
+    if (!v) return "";
+    // Keep digits and leading +
+    const cleaned = v.replace(/[^\d+]/g, "");
+    return cleaned;
+  }
+
+  async function waitForSession({ timeoutMs = 6000, intervalMs = 250 } = {}) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const { data, error } = await supabase.auth.getSession();
+      if (!error && data?.session) return data.session;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return null;
+  }
+
+  // ---------- Fetch doctors for patient signup ----------
   useEffect(() => {
     let cancelled = false;
 
     async function fetchDoctors() {
-      // Only patients need the doctors dropdown
       if (userType !== "patient") {
         setDoctors([]);
         setSelectedDoctor("");
@@ -55,7 +77,6 @@ export default function Signup() {
         if (!cancelled) setDoctors(data || []);
       } catch (e) {
         console.error("Error fetching doctors:", e);
-        // Don't block signup because doctors couldn't load
         if (!cancelled) setDoctors([]);
       } finally {
         if (!cancelled) setLoadingDoctors(false);
@@ -63,59 +84,120 @@ export default function Signup() {
     }
 
     fetchDoctors();
-
     return () => {
       cancelled = true;
     };
   }, [userType]);
 
+  // ---------- Submit ----------
   async function handleSubmit(e) {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (password !== confirmPassword) {
-    setError("Passwords do not match");
-    return;
-  }
-
-  if (password.length < 6) {
-    setError("Password must be at least 6 characters");
-    return;
-  }
-
-  if (userType === "patient" && doctors.length > 0 && !selectedDoctor) {
-    setError("Please select a doctor");
-    return;
-  }
-
-  try {
     setError("");
-    setLoading(true);
+    setInfo("");
 
-    await signup({
-      email,
-      password,
-      fullName,
-      phoneNumber,
-      role: userType,
-      selectedDoctorId: selectedDoctor || null,
-    });
+    const trimmedEmail = email.trim();
+    const trimmedName = fullName.trim();
+    const cleanPhone = normalizePhone(phoneNumber);
 
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    if (!trimmedName) {
+      setError("Full name is required");
+      return;
+    }
 
-    if (loginError) throw loginError;
+    if (!trimmedEmail) {
+      setError("Email is required");
+      return;
+    }
 
-    navigate("/dashboard");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
 
-  } catch (e) {
-    console.error(e);
-    setError(e?.message || "Failed to create account.");
-  } finally {
-    setLoading(false);
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    // Only require selecting a doctor if doctors are available
+    if (userType === "patient" && doctors.length > 0 && !selectedDoctor) {
+      setError("Please select a doctor");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // 1) Create auth user + set metadata (trigger will create/patch profiles)
+      const result = await signup({
+        email: trimmedEmail,
+        password,
+        fullName: trimmedName,
+        phoneNumber: cleanPhone,
+        role: userType,
+        selectedDoctorId: userType === "patient" ? selectedDoctor || null : null,
+      });
+
+      // Some AuthContext implementations return nothing.
+      // We’ll detect confirmation status by checking session after signUp.
+
+      // 2) If email confirmation is OFF, we can log in immediately.
+      //    If email confirmation is ON, signInWithPassword will fail until email verified.
+      //    So: attempt login, but handle "email not confirmed" gracefully.
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      });
+
+      if (loginError) {
+        // Common when email confirmations are ON
+        const msg = String(loginError.message || "").toLowerCase();
+        const looksLikeConfirm =
+          msg.includes("confirm") ||
+          msg.includes("verified") ||
+          msg.includes("not confirmed");
+
+        if (looksLikeConfirm) {
+          setInfo(
+            "Account created. Please check your email to confirm your account, then login."
+          );
+          navigate("/login");
+          return;
+        }
+
+        throw loginError;
+      }
+
+      // 3) Wait for session to actually exist (prevents “stuck / dashboard errors”)
+      const session = await waitForSession();
+      if (!session) {
+        // Fallback: still send to login instead of leaving them stuck
+        setInfo("Account created. Please login to continue.");
+        navigate("/login");
+        return;
+      }
+
+      // 4) Go to dashboard for BOTH patient and doctor
+      navigate("/dashboard");
+    } catch (e) {
+      console.error(e);
+
+      // Better message for "User already registered"
+      const msg = e?.message || "Failed to create account.";
+      if (String(msg).toLowerCase().includes("already registered")) {
+        setError(
+          "This email is already registered (Supabase Auth). Delete the user from Authentication → Users, or use a different email."
+        );
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
-}
+
+  const mustChooseDoctor = userType === "patient" && doctors.length > 0;
 
   return (
     <div className="auth-page">
@@ -136,6 +218,13 @@ export default function Signup() {
             </div>
           )}
 
+          {info && (
+            <div className="auth-info" style={{ marginBottom: 12 }}>
+              <AlertCircle className="error-icon" />
+              <span>{info}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="form-field">
               <label className="form-label">
@@ -145,20 +234,18 @@ export default function Signup() {
               <div className="user-type-selector">
                 <button
                   type="button"
-                  className={`user-type-btn ${
-                    userType === "patient" ? "active" : ""
-                  }`}
+                  className={`user-type-btn ${userType === "patient" ? "active" : ""}`}
                   onClick={() => setUserType("patient")}
+                  disabled={loading}
                 >
                   <Users className="user-type-icon" />
                   <span>Patient</span>
                 </button>
                 <button
                   type="button"
-                  className={`user-type-btn ${
-                    userType === "doctor" ? "active" : ""
-                  }`}
+                  className={`user-type-btn ${userType === "doctor" ? "active" : ""}`}
                   onClick={() => setUserType("doctor")}
+                  disabled={loading}
                 >
                   <Stethoscope className="user-type-icon" />
                   <span>Doctor</span>
@@ -179,6 +266,8 @@ export default function Signup() {
                 className="form-input"
                 placeholder="Enter your full name"
                 required
+                disabled={loading}
+                autoComplete="name"
               />
             </div>
 
@@ -195,6 +284,8 @@ export default function Signup() {
                 className="form-input"
                 placeholder="your.email@example.com"
                 required
+                disabled={loading}
+                autoComplete="email"
               />
             </div>
 
@@ -210,6 +301,8 @@ export default function Signup() {
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 className="form-input"
                 placeholder="+966 50 123 4567"
+                disabled={loading}
+                autoComplete="tel"
               />
             </div>
 
@@ -226,19 +319,9 @@ export default function Signup() {
                   </p>
                 ) : doctors.length === 0 ? (
                   <div className="doctor-notice">
-                    <AlertCircle
-                      className="form-label-icon"
-                      style={{ color: "#f59e0b" }}
-                    />
-                    <p
-                      style={{
-                        fontSize: "0.875rem",
-                        color: "#6b7280",
-                        margin: 0,
-                      }}
-                    >
-                      No doctors available yet. You can still sign up and select
-                      a doctor later.
+                    <AlertCircle className="form-label-icon" style={{ color: "#f59e0b" }} />
+                    <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0 }}>
+                      No doctors available yet. You can still sign up and select a doctor later.
                     </p>
                   </div>
                 ) : (
@@ -247,12 +330,14 @@ export default function Signup() {
                     value={selectedDoctor}
                     onChange={(e) => setSelectedDoctor(e.target.value)}
                     className="form-input"
-                    required
+                    disabled={loading}
+                    // Only require if doctors exist (don’t hard-block early dev)
+                    required={mustChooseDoctor}
                   >
                     <option value="">-- Choose a doctor --</option>
                     {doctors.map((doctor) => (
                       <option key={doctor.id} value={doctor.id}>
-                        {doctor.full_name || "Doctor"} — {doctor.email}
+                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"} — {doctor.email}
                       </option>
                     ))}
                   </select>
@@ -273,6 +358,8 @@ export default function Signup() {
                 className="form-input"
                 placeholder="Minimum 6 characters"
                 required
+                disabled={loading}
+                autoComplete="new-password"
               />
             </div>
 
@@ -289,12 +376,14 @@ export default function Signup() {
                 className="form-input"
                 placeholder="Re-enter your password"
                 required
+                disabled={loading}
+                autoComplete="new-password"
               />
             </div>
 
             <button
               type="submit"
-              disabled={loading || (userType === "patient" && doctors.length > 0 && !selectedDoctor)}
+              disabled={loading || (mustChooseDoctor && !selectedDoctor)}
               className="auth-submit-btn"
             >
               {loading ? "Creating account..." : "Sign Up"}
