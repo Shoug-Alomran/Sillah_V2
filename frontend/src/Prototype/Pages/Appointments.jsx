@@ -52,17 +52,35 @@ async function insertAppointmentSchemaSafe(basePayload) {
   let lastError = null;
 
   for (const payload of payloadVariants) {
-    const { data, error } = await supabase
-      .from("appointments")
-      .insert(payload)
-      .select("*")
-      .single();
+    const candidateStatuses = payload.status ? [payload.status, "pending", "booked", "requested"] : [null];
 
-    if (!error) return data;
+    for (const statusValue of candidateStatuses) {
+      const finalPayload = statusValue ? { ...payload, status: statusValue } : { ...payload };
+      if (!statusValue) delete finalPayload.status;
 
-    lastError = error;
-    // Continue fallback only for "column does not exist" errors
-    if (error.code !== "PGRST204" && error.code !== "42703") break;
+      const { data, error } = await supabase
+        .from("appointments")
+        .insert(finalPayload)
+        .select("*")
+        .single();
+
+      if (!error) return data;
+
+      lastError = error;
+
+      // If enum value is invalid, try next status candidate
+      if (error.code === "22P02" && String(error.message || "").toLowerCase().includes("appt_status")) {
+        continue;
+      }
+
+      // Continue to next payload variant only for missing-column errors
+      if (error.code === "PGRST204" || error.code === "42703") {
+        break;
+      }
+
+      // Any other error: stop early
+      throw error;
+    }
   }
 
   throw lastError || new Error("Unable to book appointment");
