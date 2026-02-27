@@ -54,16 +54,15 @@ async function updateAppointmentStatusSafe({ appointmentId, doctorId, preferredS
       .from("appointments")
       .update({ status })
       .eq("id", appointmentId)
-      .select("id, status")
-      .maybeSingle();
+      .select("id, status");
 
     if (doctorId) {
       query = query.eq("doctor_id", doctorId);
     }
 
     const { data, error } = await query;
-    if (!error && data?.id) return status;
-    if (!error && !data?.id) {
+    if (!error && Array.isArray(data) && data.length > 0) return status;
+    if (!error && (!Array.isArray(data) || data.length === 0)) {
       lastError = new Error("No appointment row was updated. Please verify doctor assignment and RLS policies.");
       continue;
     }
