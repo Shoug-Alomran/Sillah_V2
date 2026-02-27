@@ -5,6 +5,43 @@ import { useLocation } from "react-router-dom";
 import { clinicsData } from "../../data/clinics";
 import { supabase } from "../../lib/supabaseClient";
 
+async function insertAppointmentSchemaSafe(basePayload) {
+  const payloadVariants = [
+    basePayload,
+    // Fallback: remove optional location fields that may not exist in some schemas
+    (({ address, phone, location, ...rest }) => rest)(basePayload),
+    // Final fallback: keep only core fields
+    (({ patient_id, patient_name, doctor_id, clinic_name, appointment_date, reason, notes, status }) => ({
+      patient_id,
+      patient_name,
+      doctor_id,
+      clinic_name,
+      appointment_date,
+      reason,
+      notes,
+      status
+    }))(basePayload)
+  ];
+
+  let lastError = null;
+
+  for (const payload of payloadVariants) {
+    const { data, error } = await supabase
+      .from("appointments")
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (!error) return data;
+
+    lastError = error;
+    // Continue fallback only for "column does not exist" errors
+    if (error.code !== "PGRST204" && error.code !== "42703") break;
+  }
+
+  throw lastError || new Error("Unable to book appointment");
+}
+
 export default function Appointments() {
   const location = useLocation();
   const { currentUser, profile, isDoctor, isPatient } = useAuth();
@@ -179,13 +216,7 @@ export default function Appointments() {
         status: "scheduled"
       };
 
-      const { data, error: insertError } = await supabase
-        .from("appointments")
-        .insert(newAppointment)
-        .select("*")
-        .single();
-
-      if (insertError) throw insertError;
+      const data = await insertAppointmentSchemaSafe(newAppointment);
 
       setAppointments((prev) => [data, ...prev]);
       setBookingForm({
