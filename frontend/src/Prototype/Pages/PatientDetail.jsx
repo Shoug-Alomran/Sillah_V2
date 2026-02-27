@@ -89,12 +89,32 @@ export default function PatientDetail() {
           historyRows = historyData || [];
         }
 
-        const { data: appts, error: apptErr } = await supabase
+        let appts = [];
+        let apptErr = null;
+
+        const appointmentsDetailed = await supabase
           .from("appointments")
           .select("id, clinic_name, appointment_date, appointment_time, reason, status, created_at")
           .eq("patient_id", patientId)
           .order("appointment_date", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false });
+
+        appts = appointmentsDetailed.data || [];
+        apptErr = appointmentsDetailed.error;
+
+        // Some deployments don't have clinic_name/appointment_time.
+        // Fall back to a schema-safe query so doctor view still works.
+        if (apptErr?.code === "42703") {
+          const appointmentsFallback = await supabase
+            .from("appointments")
+            .select("*")
+            .eq("patient_id", patientId)
+            .order("appointment_date", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+
+          appts = appointmentsFallback.data || [];
+          apptErr = appointmentsFallback.error;
+        }
 
         if (apptErr) throw apptErr;
 
