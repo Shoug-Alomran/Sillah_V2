@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState
-} from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
@@ -14,7 +8,6 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load profile from DB
   async function loadProfile(userId) {
     if (!userId) {
       setProfile(null);
@@ -23,7 +16,7 @@ export function AuthProvider({ children }) {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id,email,full_name,phone_number,role,selected_doctor_id,patient_code,created_at")
       .eq("id", userId)
       .single();
 
@@ -31,56 +24,25 @@ export function AuthProvider({ children }) {
       setProfile(null);
       return;
     }
-
     setProfile(data);
   }
 
-  // Check existing session on first load
   async function refreshSession() {
-  const { data } = await supabase.auth.getSession();
-  console.log("SESSION:", data);
+    const { data } = await supabase.auth.getSession();
+    const user = data?.session?.user ?? null;
 
-  const user = data?.session?.user ?? null;
-
-  setCurrentUser(user);
-
-  if (user) {
-    await loadProfile(user.id);
+    setCurrentUser(user);
+    if (user) await loadProfile(user.id);
   }
-}
 
   async function login(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-
-    // Auth state listener will handle setting user + profile
     return data.user;
   }
 
-  /**
-   * signup expects:
-   * {
-   *   email,
-   *   password,
-   *   fullName,
-   *   phoneNumber,
-   *   role,
-   *   selectedDoctorId
-   * }
-   */
   async function signup(payload) {
-    const {
-      email,
-      password,
-      fullName,
-      phoneNumber,
-      role,
-      selectedDoctorId
-    } = payload;
+    const { email, password, fullName, phoneNumber, role, selectedDoctorId } = payload;
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -88,18 +50,22 @@ export function AuthProvider({ children }) {
       options: {
         data: {
           full_name: fullName,
-          phone_number: phoneNumber || null,
+          phone_number: phoneNumber || "",
           role,
-          selected_doctor_id:
-            role === "patient" ? selectedDoctorId || null : null
+          selected_doctor_id: role === "patient" ? (selectedDoctorId || "") : ""
         }
       }
     });
 
     if (error) throw error;
 
-    // Do NOT manually insert or upsert profile.
-    // Database trigger creates it automatically.
+    // If email confirmation is OFF, you may get a session immediately.
+    // If it’s ON, session will be null until email is confirmed.
+    if (data?.session?.user) {
+      setCurrentUser(data.session.user);
+      await loadProfile(data.session.user.id);
+    }
+
     return data.user;
   }
 
@@ -120,28 +86,22 @@ export function AuthProvider({ children }) {
       }
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const user = session?.user ?? null;
-        setCurrentUser(user);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const user = session?.user ?? null;
+      setCurrentUser(user);
 
-        if (user) {
-          await loadProfile(user.id);
-        } else {
-          setProfile(null);
-        }
-      }
-    );
+      if (user) await loadProfile(user.id);
+      else setProfile(null);
+    });
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      sub?.subscription?.unsubscribe?.();
     };
   }, []);
 
   const value = useMemo(() => {
     const role = profile?.role;
-
     return {
       currentUser,
       profile,
@@ -159,8 +119,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
