@@ -53,14 +53,20 @@ async function updateAppointmentStatusSafe({ appointmentId, doctorId, preferredS
     let query = supabase
       .from("appointments")
       .update({ status })
-      .eq("id", appointmentId);
+      .eq("id", appointmentId)
+      .select("id, status")
+      .maybeSingle();
 
     if (doctorId) {
       query = query.eq("doctor_id", doctorId);
     }
 
-    const { error } = await query;
-    if (!error) return status;
+    const { data, error } = await query;
+    if (!error && data?.id) return status;
+    if (!error && !data?.id) {
+      lastError = new Error("No appointment row was updated. Please verify doctor assignment and RLS policies.");
+      continue;
+    }
 
     lastError = error;
     // Enum mismatch: try the next candidate.
@@ -249,6 +255,25 @@ export default function Appointments() {
       supabase.removeChannel(channel);
     };
   }, [currentUser?.id, isDoctor, isPatient, fetchAppointments]);
+
+  // Realtime fallback: keeps status synchronized even if websocket delivery is delayed.
+  useEffect(() => {
+    if (!currentUser?.id) return undefined;
+
+    const pollId = window.setInterval(() => {
+      fetchAppointments();
+    }, 10000);
+
+    const onFocus = () => fetchAppointments();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
+    return () => {
+      window.clearInterval(pollId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [currentUser?.id, fetchAppointments]);
 
   const handleClinicSelect = (e) => {
     const clinicId = e.target.value;
