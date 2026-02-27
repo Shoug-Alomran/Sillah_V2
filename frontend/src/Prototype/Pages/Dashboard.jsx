@@ -96,23 +96,11 @@ export default function Dashboard() {
             healthRecordsCount = count || 0;
           }
 
-          let unreadAlertsCount = 0;
-          const { count: unreadCount, error: raErr } = await supabase
+          const { count: unreadAlertsCount, error: raErr } = await supabase
             .from("risk_alerts")
             .select("*", { count: "exact", head: true })
-            .eq("patient_id", currentUser.id)
-            .eq("is_read", false);
-
-          if (raErr) {
-            const { count: fallbackCount, error: fallbackErr } = await supabase
-              .from("risk_alerts")
-              .select("*", { count: "exact", head: true })
-              .eq("patient_id", currentUser.id);
-            if (fallbackErr) console.warn("Unread alerts count skipped:", fallbackErr.message);
-            unreadAlertsCount = fallbackCount || 0;
-          } else {
-            unreadAlertsCount = unreadCount || 0;
-          }
+            .eq("patient_id", currentUser.id);
+          if (raErr) console.warn("Alerts count skipped:", raErr.message);
 
           if (!cancelled) {
             setStats((s) => ({
@@ -120,7 +108,7 @@ export default function Dashboard() {
               familyMembersCount,
               appointmentCount: appointmentCount || 0,
               healthRecordsCount,
-              unreadAlertsCount
+              unreadAlertsCount: unreadAlertsCount || 0
             }));
           }
         }
