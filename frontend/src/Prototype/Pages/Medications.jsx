@@ -15,6 +15,7 @@ import { supabase } from "../../lib/supabaseClient";
 
 export default function Medications() {
   const { currentUser, profile, isDoctor, isPatient } = useAuth();
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const viewMode = useMemo(() => (isDoctor ? "doctor" : "patient"), [isDoctor]);
 
@@ -233,6 +234,18 @@ export default function Medications() {
     // Basic validation
     if (!formData.medication_name.trim() || !formData.dosage.trim() || !formData.start_date) {
       setFormError("Please fill Medication Name, Dosage, and Start Date.");
+      return;
+    }
+    if (formData.start_date > todayISO) {
+      setFormError("Start date cannot be in the future.");
+      return;
+    }
+    if (formData.end_date && formData.end_date < formData.start_date) {
+      setFormError("End date cannot be before start date.");
+      return;
+    }
+    if (formData.refill_date && formData.refill_date < formData.start_date) {
+      setFormError("Refill reminder date cannot be before start date.");
       return;
     }
 
@@ -713,6 +726,7 @@ export default function Medications() {
                       value={formData.start_date}
                       onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
                       className="form-input"
+                      max={todayISO}
                       required
                     />
                   </div>
@@ -727,6 +741,7 @@ export default function Medications() {
                       value={formData.end_date}
                       onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                       className="form-input"
+                      min={formData.start_date || undefined}
                     />
                   </div>
                 </div>
@@ -741,6 +756,7 @@ export default function Medications() {
                     value={formData.refill_date}
                     onChange={(e) => setFormData({ ...formData, refill_date: e.target.value })}
                     className="form-input"
+                    min={formData.start_date || undefined}
                   />
                 </div>
 

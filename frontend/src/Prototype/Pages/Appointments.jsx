@@ -335,6 +335,12 @@ export default function Appointments() {
       return;
     }
 
+    const requestedAt = new Date(toAppointmentTimestamp(bookingForm.appointment_date, bookingForm.appointment_time));
+    if (!Number.isNaN(requestedAt.getTime()) && requestedAt < new Date()) {
+      alert("Appointment time cannot be in the past.");
+      return;
+    }
+
     try {
       const doctorId = await resolveDoctorIdForPatient();
 
