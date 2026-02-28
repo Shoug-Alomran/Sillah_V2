@@ -462,7 +462,7 @@ export default function Layout({ children, currentPageName }) {
         </div>
 
         <div className="app-footer-bottom">
-          <p>&copy; 2025 Sillah. All rights reserved.</p>
+          <p>&copy; 2026 Sillah. All rights reserved.</p>
         </div>
       </footer>
     </div>
