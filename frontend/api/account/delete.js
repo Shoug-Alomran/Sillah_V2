@@ -15,20 +15,20 @@ async function getAuthenticatedUser(req, admin) {
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ["POST"])) return;
 
-  const admin = getSupabaseAdmin();
-  const user = await getAuthenticatedUser(req, admin);
-
-  if (!user) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  const body = jsonBody(req);
-  const confirmation = String(body.confirmation || "").trim().toUpperCase();
-  if (confirmation !== "DELETE") {
-    return res.status(400).json({ error: "Confirmation text must be DELETE." });
-  }
-
   try {
+    const admin = getSupabaseAdmin();
+    const user = await getAuthenticatedUser(req, admin);
+
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const body = jsonBody(req);
+    const confirmation = String(body.confirmation || "").trim().toUpperCase();
+    if (confirmation !== "DELETE") {
+      return res.status(400).json({ error: "Confirmation text must be DELETE." });
+    }
+
     const userId = user.id;
     const { data: profile, error: profileFetchError } = await admin
       .from("profiles")

@@ -30,8 +30,12 @@ export async function api(path, options = {}) {
       !API_BASE && typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
         ? " Set VITE_API_BASE in Vercel to your backend URL."
         : "";
+    const supabaseHint =
+      path === "/api/account/delete" && bodySnippet.includes("FUNCTION_INVOCATION_FAILED")
+        ? " For account deletion, also verify SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL are set in Vercel."
+        : "";
     throw new Error(
-      `API did not return JSON for ${url}. Check backend routing.${configHint} Response starts with: ${bodySnippet.slice(0, 80)}`
+      `API did not return JSON for ${url}. Check backend routing.${configHint}${supabaseHint} Response starts with: ${bodySnippet.slice(0, 80)}`
     );
   }
 

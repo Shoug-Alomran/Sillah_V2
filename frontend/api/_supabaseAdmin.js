@@ -12,7 +12,9 @@ export function getSupabaseAdmin() {
   if (!supabaseUrl) missing.push("SUPABASE_URL");
   if (!serviceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length) {
-    throw new Error(`Missing Supabase admin env vars: ${missing.join(", ")}`);
+    throw new Error(
+      `Missing Supabase admin env vars: ${missing.join(", ")}. Add them in your Vercel project settings, then redeploy.`
+    );
   }
 
   adminClient = createClient(supabaseUrl, serviceRoleKey, {
