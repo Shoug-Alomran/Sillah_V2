@@ -168,7 +168,7 @@ export default function Signup() {
 
   return (
     <div className="auth-page">
-      <div className="auth-container">
+      <div className="auth-container auth-container--signup">
         <div className="auth-card">
           <div className="auth-toolbar">
             <LanguageToggle />
