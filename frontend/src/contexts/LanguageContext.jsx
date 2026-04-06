@@ -116,6 +116,20 @@ const translations = {
       patientSubtitle: "Family Health Portal",
       quickActions: "Quick Actions",
       privacy: "Patient Privacy & Access",
+      accountSafety: "Account Safety",
+      deleteTitle: "Delete account and all personal data",
+      deleteBody:
+        "This permanently removes your profile, family records, appointments, medications, alerts, and linked account data.",
+      deleteWarning:
+        "This action cannot be undone. Type DELETE to confirm before continuing.",
+      deletePlaceholder: "Type DELETE",
+      deleteButton: "Delete My Account",
+      deleteConfirmLabel: "Confirmation text",
+      deleteConfirmHelp: "This extra confirmation helps prevent accidental account removal.",
+      deleteSuccess: "Your account has been deleted.",
+      deleteErrorGeneric: "Failed to delete your account.",
+      deleteMismatch: "Type DELETE exactly to continue.",
+      deleting: "Deleting account...",
       firstTimeTitle: "Getting started in Sillah",
       firstTimeBody:
         "Use the quick actions below to manage family health records, appointments, and clinic coordination. You can switch between English and Arabic from the top navigation any time.",
@@ -339,6 +353,20 @@ const translations = {
       patientSubtitle: "بوابة صحة العائلة",
       quickActions: "إجراءات سريعة",
       privacy: "خصوصية المريض والوصول",
+      accountSafety: "أمان الحساب",
+      deleteTitle: "حذف الحساب وجميع البيانات الشخصية",
+      deleteBody:
+        "سيؤدي هذا إلى حذف ملفك الشخصي وسجلات العائلة والمواعيد والأدوية والتنبيهات والبيانات المرتبطة بالحساب بشكل نهائي.",
+      deleteWarning:
+        "لا يمكن التراجع عن هذا الإجراء. اكتب DELETE للتأكيد قبل المتابعة.",
+      deletePlaceholder: "اكتب DELETE",
+      deleteButton: "حذف حسابي",
+      deleteConfirmLabel: "نص التأكيد",
+      deleteConfirmHelp: "هذا التأكيد الإضافي يساعد على منع حذف الحساب عن طريق الخطأ.",
+      deleteSuccess: "تم حذف حسابك.",
+      deleteErrorGeneric: "تعذر حذف الحساب.",
+      deleteMismatch: "اكتب DELETE تماماً للمتابعة.",
+      deleting: "جارٍ حذف الحساب...",
       firstTimeTitle: "البدء في صلة",
       firstTimeBody:
         "استخدم الإجراءات السريعة لإدارة السجل الصحي العائلي والمواعيد والتنسيق مع العيادات. يمكنك التبديل بين العربية والإنجليزية من أعلى الصفحة في أي وقت.",

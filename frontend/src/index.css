@@ -680,6 +680,53 @@ body {
   height: 1rem;
 }
 
+.danger-zone-card {
+  border: 1px solid #fecaca;
+  background: linear-gradient(135deg, #fff7f7, #fff1f2);
+}
+
+.danger-zone-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #991b1b;
+  margin-bottom: 0.5rem;
+}
+
+.danger-zone-text {
+  color: #7f1d1d;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+
+.danger-zone-warning {
+  color: #b91c1c;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.danger-zone-button {
+  margin-top: 0.5rem;
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.danger-zone-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(220, 38, 38, 0.2);
+}
+
+.danger-zone-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 body[dir="rtl"] .auth-card,
 body[dir="rtl"] .appointments-container,
 body[dir="rtl"] .family-tree-container,

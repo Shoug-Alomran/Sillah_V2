@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { api } from "../api";
 
 const AuthContext = createContext(null);
 
@@ -118,6 +119,24 @@ export function AuthProvider({ children }) {
     setProfile(null);
   }
 
+  async function deleteAccount(confirmation) {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data?.session?.access_token;
+    if (!accessToken) throw new Error("Your session has expired. Please log in again.");
+
+    await api("/api/account/delete", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ confirmation }),
+    });
+
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setProfile(null);
+  }
+
   useEffect(() => {
     let mounted = true;
 
@@ -152,6 +171,7 @@ export function AuthProvider({ children }) {
       login,
       signup,
       logout,
+      deleteAccount,
       isDoctor: role === "doctor",
       isPatient: role === "patient"
     };

@@ -5,9 +5,10 @@ import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import { useLanguage } from "../../contexts/LanguageContext";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
+import Tooltip from "../../Components/Tooltip";
 
 export default function Dashboard() {
-  const { currentUser, profile, isDoctor } = useAuth();
+  const { currentUser, profile, isDoctor, deleteAccount } = useAuth();
   const { language, t } = useLanguage();
 
   const [stats, setStats] = useState({
@@ -20,6 +21,9 @@ export default function Dashboard() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -142,6 +146,25 @@ export default function Dashboard() {
         </div>
       </div>
     );
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmation.trim().toUpperCase() !== "DELETE") {
+      setDeleteError(t("dashboard.deleteMismatch"));
+      return;
+    }
+
+    try {
+      setDeleteError("");
+      setDeleting(true);
+      await deleteAccount(deleteConfirmation);
+      window.location.assign("/login");
+    } catch (error) {
+      console.error("Delete account error:", error);
+      setDeleteError(error?.message || t("dashboard.deleteErrorGeneric"));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -331,6 +354,49 @@ export default function Dashboard() {
               ? `You have access to ${stats.patientCount} patients assigned to you. Patient data is protected.`
               : "Your health information is protected and secure. Only authorized providers can access it."}
           </p>
+        </div>
+
+        <div className="quick-actions-card danger-zone-card">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+            <AlertTriangle size={24} color="#dc2626" />
+            <h2 className="quick-actions-title" style={{ margin: 0 }}>
+              {t("dashboard.accountSafety")}
+            </h2>
+          </div>
+          <h3 className="danger-zone-title">{t("dashboard.deleteTitle")}</h3>
+          <p className="danger-zone-text">{t("dashboard.deleteBody")}</p>
+          <p className="danger-zone-warning">{t("dashboard.deleteWarning")}</p>
+
+          <div className="form-field" style={{ maxWidth: "22rem" }}>
+            <label htmlFor="delete-confirmation" className="form-label">
+              {t("dashboard.deleteConfirmLabel")}
+              <Tooltip content={t("dashboard.deleteConfirmHelp")} iconOnly>
+                <span className="label-help">?</span>
+              </Tooltip>
+            </label>
+            <input
+              id="delete-confirmation"
+              type="text"
+              value={deleteConfirmation}
+              onChange={(e) => {
+                setDeleteConfirmation(e.target.value);
+                setDeleteError("");
+              }}
+              className={`form-input ${deleteError ? "form-input--error" : ""}`}
+              placeholder={t("dashboard.deletePlaceholder")}
+              disabled={deleting}
+            />
+            {deleteError && <p className="inline-field-error">{deleteError}</p>}
+          </div>
+
+          <button
+            type="button"
+            className="danger-zone-button"
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+          >
+            {deleting ? t("dashboard.deleting") : t("dashboard.deleteButton")}
+          </button>
         </div>
       </div>
     </div>
