@@ -1,6 +1,4 @@
-// frontend/src/Prototype/Pages/Signup.jsx
 import React, { useEffect, useState } from "react";
-import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Heart,
@@ -12,7 +10,12 @@ import {
   Stethoscope,
   Users,
 } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import { useLanguage } from "../../contexts/LanguageContext";
+import LanguageToggle from "../../Components/LanguageToggle";
+import OnboardingPrompt from "../../Components/OnboardingPrompt";
+import Tooltip from "../../Components/Tooltip";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
@@ -20,29 +23,66 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [userType, setUserType] = useState("patient"); // "patient" | "doctor"
+  const [userType, setUserType] = useState("patient");
   const [selectedDoctor, setSelectedDoctor] = useState("");
-
   const [doctors, setDoctors] = useState([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
-
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const { signup } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
-  // ---------- Helpers ----------
   function normalizePhone(input) {
-    const v = String(input || "").trim();
-    if (!v) return "";
-    // Keep digits and leading +
-    const cleaned = v.replace(/[^\d+]/g, "");
-    return cleaned;
+    const value = String(input || "").trim();
+    if (!value) return "";
+    return value.replace(/[^\d+]/g, "");
   }
 
-  // ---------- Fetch doctors for patient signup ----------
+  function validate(overrides = {}) {
+    const values = {
+      email,
+      password,
+      confirmPassword,
+      fullName,
+      phoneNumber,
+      selectedDoctor,
+      ...overrides,
+    };
+
+    const errors = {};
+    const trimmedEmail = values.email.trim();
+    const trimmedName = values.fullName.trim();
+    const cleanPhone = normalizePhone(values.phoneNumber);
+
+    if (!trimmedName) errors.fullName = t("signup.validationNameRequired");
+    if (!trimmedEmail) errors.email = t("signup.validationEmailRequired");
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.email = t("signup.validationEmailInvalid");
+    }
+
+    if (cleanPhone && cleanPhone.replace(/\D/g, "").length < 8) {
+      errors.phoneNumber = t("signup.validationPhoneInvalid");
+    }
+
+    if (!values.password) errors.password = t("signup.validationPasswordRequired");
+    else if (values.password.length < 6) errors.password = t("signup.validationPasswordLength");
+
+    if (!values.confirmPassword) errors.confirmPassword = t("signup.validationConfirmRequired");
+    else if (values.password !== values.confirmPassword) {
+      errors.confirmPassword = t("signup.validationPasswordMismatch");
+    }
+
+    if (userType === "patient" && doctors.length > 0 && !values.selectedDoctor) {
+      errors.selectedDoctor = t("signup.validationDoctorRequired");
+    }
+
+    return errors;
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -55,18 +95,16 @@ export default function Signup() {
 
       try {
         setLoadingDoctors(true);
-
-        const { data, error } = await supabase
+        const { data, error: fetchError } = await supabase
           .from("profiles")
           .select("id, full_name, email")
           .eq("role", "doctor")
           .order("full_name", { ascending: true });
 
-        if (error) throw error;
-
+        if (fetchError) throw fetchError;
         if (!cancelled) setDoctors(data || []);
-      } catch (e) {
-        console.error("Error fetching doctors:", e);
+      } catch (fetchErr) {
+        console.error("Error fetching doctors:", fetchErr);
         if (!cancelled) setDoctors([]);
       } finally {
         if (!cancelled) setLoadingDoctors(false);
@@ -79,74 +117,45 @@ export default function Signup() {
     };
   }, [userType]);
 
-  // ---------- Submit ----------
   async function handleSubmit(e) {
     e.preventDefault();
-
     setError("");
     setInfo("");
+
+    const nextErrors = validate();
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError(Object.values(nextErrors)[0]);
+      return;
+    }
 
     const trimmedEmail = email.trim();
     const trimmedName = fullName.trim();
     const cleanPhone = normalizePhone(phoneNumber);
 
-    if (!trimmedName) {
-      setError("Full name is required");
-      return;
-    }
-
-    if (!trimmedEmail) {
-      setError("Email is required");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-
-    // Only require selecting a doctor if doctors are available
-    if (userType === "patient" && doctors.length > 0 && !selectedDoctor) {
-      setError("Please select a doctor");
-      return;
-    }
-
     try {
       setLoading(true);
 
-      // 1) Create auth user + set metadata (trigger will create/patch profiles)
       const { session } = await signup({
         email: trimmedEmail,
         password,
         fullName: trimmedName,
         phoneNumber: cleanPhone,
         role: userType,
-        selected_doctor_id: userType === "patient" ? selectedDoctor || null : null
+        selected_doctor_id: userType === "patient" ? selectedDoctor || null : null,
       });
 
-      // Email confirmation is expected OFF, but keep a safe fallback.
       if (!session) {
-        setInfo("Account created. Please login to continue.");
+        setInfo(t("signup.infoCreated"));
         navigate("/login");
         return;
       }
 
-      // Go to dashboard for BOTH patient and doctor
       navigate("/dashboard");
-    } catch (e) {
-      console.error(e);
-
-      // Better message for "User already registered"
-      const msg = e?.message || "Failed to create account.";
+    } catch (signupError) {
+      const msg = signupError?.message || t("signup.errorGeneric");
       if (String(msg).toLowerCase().includes("already registered")) {
-        setError(
-          "This email is already registered (Supabase Auth). Delete the user from Authentication → Users, or use a different email."
-        );
+        setError(t("signup.errorRegistered"));
       } else {
         setError(msg);
       }
@@ -161,13 +170,25 @@ export default function Signup() {
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-card">
+          <div className="auth-toolbar">
+            <LanguageToggle />
+          </div>
+
           <div className="auth-header">
             <div className="brand-icon-large">
               <Heart className="brand-heart-large" />
             </div>
-            <h1 className="auth-title">Join Sillah (صلة)</h1>
-            <p className="auth-subtitle">Create your account</p>
+            <h1 className="auth-title">{t("signup.title")}</h1>
+            <p className="auth-subtitle">{t("signup.subtitle")}</p>
           </div>
+
+          <OnboardingPrompt
+            storageKey="sillah-signup-onboarding"
+            title={t("signup.onboardingTitle")}
+            body={t("signup.onboardingBody")}
+            actionLabel={t("signup.onboardingAction")}
+            onAction={() => navigate("/login")}
+          />
 
           {error && (
             <div className="auth-error">
@@ -187,7 +208,7 @@ export default function Signup() {
             <div className="form-field">
               <label className="form-label">
                 <Users className="form-label-icon" />
-                I am a
+                {t("signup.role")}
               </label>
               <div className="user-type-selector">
                 <button
@@ -197,7 +218,7 @@ export default function Signup() {
                   disabled={loading}
                 >
                   <Users className="user-type-icon" />
-                  <span>Patient</span>
+                  <span>{t("signup.patient")}</span>
                 </button>
                 <button
                   type="button"
@@ -206,7 +227,7 @@ export default function Signup() {
                   disabled={loading}
                 >
                   <Stethoscope className="user-type-icon" />
-                  <span>Doctor</span>
+                  <span>{t("signup.doctor")}</span>
                 </button>
               </div>
             </div>
@@ -214,91 +235,121 @@ export default function Signup() {
             <div className="form-field">
               <label htmlFor="fullName" className="form-label">
                 <User className="form-label-icon" />
-                Full Name
+                {t("signup.fullName")}
+                <Tooltip content={t("signup.fullNameHelp")} iconOnly>
+                  <span className="label-help">?</span>
+                </Tooltip>
               </label>
               <input
                 id="fullName"
                 type="text"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="form-input"
-                placeholder="Enter your full name"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setFullName(nextValue);
+                  setFieldErrors(validate({ fullName: nextValue }));
+                }}
+                className={`form-input ${fieldErrors.fullName ? "form-input--error" : ""}`}
+                placeholder={t("signup.fullNamePlaceholder")}
                 required
                 disabled={loading}
                 autoComplete="name"
               />
+              {fieldErrors.fullName && <p className="inline-field-error">{fieldErrors.fullName}</p>}
             </div>
 
             <div className="form-field">
               <label htmlFor="email" className="form-label">
                 <Mail className="form-label-icon" />
-                Email Address
+                {t("signup.email")}
               </label>
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="form-input"
-                placeholder="your.email@example.com"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setEmail(nextValue);
+                  setFieldErrors(validate({ email: nextValue }));
+                }}
+                className={`form-input ${fieldErrors.email ? "form-input--error" : ""}`}
+                placeholder={t("signup.emailPlaceholder")}
                 required
                 disabled={loading}
                 autoComplete="email"
               />
+              {fieldErrors.email && <p className="inline-field-error">{fieldErrors.email}</p>}
             </div>
 
             <div className="form-field">
               <label htmlFor="phoneNumber" className="form-label">
                 <Phone className="form-label-icon" />
-                Phone Number (Optional)
+                {t("signup.phone")}
+                <Tooltip content={t("signup.phoneHelp")} iconOnly>
+                  <span className="label-help">?</span>
+                </Tooltip>
               </label>
               <input
                 id="phoneNumber"
                 type="tel"
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="form-input"
-                placeholder="+966 50 123 4567"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setPhoneNumber(nextValue);
+                  setFieldErrors(validate({ phoneNumber: nextValue }));
+                }}
+                className={`form-input ${fieldErrors.phoneNumber ? "form-input--error" : ""}`}
+                placeholder={t("signup.phonePlaceholder")}
                 disabled={loading}
                 autoComplete="tel"
               />
+              {fieldErrors.phoneNumber && <p className="inline-field-error">{fieldErrors.phoneNumber}</p>}
             </div>
 
             {userType === "patient" && (
               <div className="form-field">
                 <label htmlFor="doctor" className="form-label">
                   <Stethoscope className="form-label-icon" />
-                  Select Your Doctor
+                  {t("signup.doctorSelect")}
+                  <Tooltip content={t("signup.doctorHelp")} iconOnly>
+                    <span className="label-help">?</span>
+                  </Tooltip>
                 </label>
 
                 {loadingDoctors ? (
                   <p className="form-input" style={{ color: "#6b7280" }}>
-                    Loading available doctors...
+                    {t("signup.loadingDoctors")}
                   </p>
                 ) : doctors.length === 0 ? (
                   <div className="doctor-notice">
                     <AlertCircle className="form-label-icon" style={{ color: "#f59e0b" }} />
                     <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0 }}>
-                      No doctors available yet. You can still sign up and select a doctor later.
+                      {t("signup.noDoctors")}
                     </p>
                   </div>
                 ) : (
                   <select
                     id="doctor"
                     value={selectedDoctor}
-                    onChange={(e) => setSelectedDoctor(e.target.value)}
-                    className="form-input"
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setSelectedDoctor(nextValue);
+                      setFieldErrors(validate({ selectedDoctor: nextValue }));
+                    }}
+                    className={`form-input ${fieldErrors.selectedDoctor ? "form-input--error" : ""}`}
                     disabled={loading}
-                    // Only require if doctors exist (don’t hard-block early dev)
                     required={mustChooseDoctor}
                   >
-                    <option value="">-- Choose a doctor --</option>
+                    <option value="">{t("signup.doctorSelectPlaceholder")}</option>
                     {doctors.map((doctor) => (
                       <option key={doctor.id} value={doctor.id}>
-                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"} — {doctor.email}
+                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"} - {doctor.email}
                       </option>
                     ))}
                   </select>
+                )}
+                {fieldErrors.selectedDoctor && (
+                  <p className="inline-field-error">{fieldErrors.selectedDoctor}</p>
                 )}
               </div>
             )}
@@ -306,37 +357,49 @@ export default function Signup() {
             <div className="form-field">
               <label htmlFor="password" className="form-label">
                 <Lock className="form-label-icon" />
-                Password
+                {t("signup.password")}
               </label>
               <input
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="form-input"
-                placeholder="Minimum 6 characters"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setPassword(nextValue);
+                  setFieldErrors(validate({ password: nextValue }));
+                }}
+                className={`form-input ${fieldErrors.password ? "form-input--error" : ""}`}
+                placeholder={t("signup.passwordPlaceholder")}
                 required
                 disabled={loading}
                 autoComplete="new-password"
               />
+              {fieldErrors.password && <p className="inline-field-error">{fieldErrors.password}</p>}
             </div>
 
             <div className="form-field">
               <label htmlFor="confirmPassword" className="form-label">
                 <Lock className="form-label-icon" />
-                Confirm Password
+                {t("signup.confirmPassword")}
               </label>
               <input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="form-input"
-                placeholder="Re-enter your password"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setConfirmPassword(nextValue);
+                  setFieldErrors(validate({ confirmPassword: nextValue }));
+                }}
+                className={`form-input ${fieldErrors.confirmPassword ? "form-input--error" : ""}`}
+                placeholder={t("signup.confirmPasswordPlaceholder")}
                 required
                 disabled={loading}
                 autoComplete="new-password"
               />
+              {fieldErrors.confirmPassword && (
+                <p className="inline-field-error">{fieldErrors.confirmPassword}</p>
+              )}
             </div>
 
             <button
@@ -344,15 +407,15 @@ export default function Signup() {
               disabled={loading || (mustChooseDoctor && !selectedDoctor)}
               className="auth-submit-btn"
             >
-              {loading ? "Creating account..." : "Sign Up"}
+              {loading ? t("signup.submitting") : t("signup.submit")}
             </button>
           </form>
 
           <div className="auth-footer">
             <p>
-              Already have an account?{" "}
+              {t("signup.haveAccount")}{" "}
               <Link to="/login" className="auth-link">
-                Login
+                {t("signup.login")}
               </Link>
             </p>
           </div>

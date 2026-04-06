@@ -3,9 +3,12 @@ import { Link } from "react-router-dom";
 import { Bell, Calendar, BookOpen, Users, Activity, Stethoscope, AlertTriangle, FileText, Shield } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import { useLanguage } from "../../contexts/LanguageContext";
+import OnboardingPrompt from "../../Components/OnboardingPrompt";
 
 export default function Dashboard() {
   const { currentUser, profile, isDoctor } = useAuth();
+  const { language, t } = useLanguage();
 
   const [stats, setStats] = useState({
     patientCount: 0,
@@ -145,12 +148,27 @@ export default function Dashboard() {
     <div className="dashboard-page">
       <div className="dashboard-container">
         <div className="dashboard-header">
-          <h1 className="dashboard-title">Welcome back, {profile?.full_name || "User"}</h1>
-          <p className="dashboard-subtitle">{isDoctor ? "Healthcare Provider Portal" : "Family Health Portal"}</p>
+          <h1 className="dashboard-title">
+            {t("dashboard.welcome", { name: profile?.full_name || "User" })}
+          </h1>
+          <p className="dashboard-subtitle">
+            {isDoctor ? t("dashboard.doctorSubtitle") : t("dashboard.patientSubtitle")}
+          </p>
           <p className="dashboard-welcome">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            {new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
           </p>
         </div>
+
+        <OnboardingPrompt
+          storageKey="sillah-dashboard-onboarding"
+          title={t("dashboard.firstTimeTitle")}
+          body={t("dashboard.firstTimeBody")}
+        />
 
         <div className="stats-grid">
           {isDoctor ? (
@@ -257,7 +275,7 @@ export default function Dashboard() {
         </div>
 
         <div className="quick-actions-card">
-          <h2 className="quick-actions-title">Quick Actions</h2>
+          <h2 className="quick-actions-title">{t("dashboard.quickActions")}</h2>
           <div className="quick-actions-grid">
             {isDoctor ? (
               <>
@@ -305,7 +323,7 @@ export default function Dashboard() {
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
             <Shield size={24} color="#14b8a6" />
             <h2 className="quick-actions-title" style={{ margin: 0 }}>
-              Patient Privacy & Access
+              {t("dashboard.privacy")}
             </h2>
           </div>
           <p>
