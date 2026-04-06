@@ -1,6 +1,3 @@
--- Seed professional demo clinics for Sillah.
--- Safe to run repeatedly. Uses your table defaults for id/created_at.
-
 insert into public.clinics (name, location, contact_number)
 select seed.name, seed.location, seed.contact_number
 from (
