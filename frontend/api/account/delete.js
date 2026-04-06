@@ -1,6 +1,20 @@
 import { allowMethods, jsonBody } from "../_utils.js";
 import { getSupabaseAdmin } from "../_supabaseAdmin.js";
 
+function isMissingColumnError(error) {
+  return error?.code === "42703";
+}
+
+async function runDelete(queryPromise) {
+  const { error } = await queryPromise;
+  if (error && !isMissingColumnError(error)) throw error;
+}
+
+async function runUpdate(queryPromise) {
+  const { error } = await queryPromise;
+  if (error && !isMissingColumnError(error)) throw error;
+}
+
 async function getAuthenticatedUser(req, admin) {
   const header = req.headers.authorization || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -52,30 +66,27 @@ export default async function handler(req, res) {
       if (historyError) throw historyError;
     }
 
-    const deletions = [
-      admin.from("risk_alerts").delete().eq("patient_id", userId),
-      admin.from("appointments").delete().eq("patient_id", userId),
-      admin.from("appointments").delete().eq("doctor_id", userId),
-      admin.from("doctor_patient").delete().eq("patient_id", userId),
-      admin.from("doctor_patient").delete().eq("doctor_id", userId),
-      admin.from("profiles").update({ selected_doctor_id: null }).eq("selected_doctor_id", userId),
-      admin.from("medications").delete().eq("patient_id", userId),
-      admin.from("medications").delete().eq("user_id", userId),
-      admin.from("medications").delete().eq("doctor_id", userId),
-      admin.from("medications").delete().eq("prescribed_by", userId),
-      admin.from("family_members").delete().eq("user_id", userId),
-    ];
+    await runDelete(admin.from("risk_alerts").delete().eq("patient_id", userId));
+    await runDelete(admin.from("appointments").delete().eq("patient_id", userId));
+    await runDelete(admin.from("appointments").delete().eq("doctor_id", userId));
+    await runDelete(admin.from("doctor_patient").delete().eq("patient_id", userId));
+    await runDelete(admin.from("doctor_patient").delete().eq("doctor_id", userId));
+    await runUpdate(
+      admin.from("profiles").update({ selected_doctor_id: null }).eq("selected_doctor_id", userId)
+    );
+
+    await runDelete(admin.from("medications").delete().eq("patient_id", userId));
+    await runDelete(admin.from("medications").delete().eq("doctor_id", userId));
+    await runDelete(admin.from("medications").delete().eq("user_id", userId));
+    await runDelete(admin.from("medications").delete().eq("prescribed_by", userId));
 
     if (profile?.patient_code) {
-      deletions.push(
+      await runDelete(
         admin.from("medications").delete().eq("prescribed_for_patient", profile.patient_code)
       );
     }
 
-    for (const task of deletions) {
-      const { error } = await task;
-      if (error) throw error;
-    }
+    await runDelete(admin.from("family_members").delete().eq("user_id", userId));
 
     const { error: profileDeleteError } = await admin.from("profiles").delete().eq("id", userId);
     if (profileDeleteError) throw profileDeleteError;
