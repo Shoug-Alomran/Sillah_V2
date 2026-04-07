@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  Heart,
   Mail,
   Lock,
   User,
@@ -16,6 +15,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import LanguageToggle from "../../Components/LanguageToggle";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
+import sillahLogo from "../../assets/sillah-logo.png";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
@@ -176,7 +176,7 @@ export default function Signup() {
 
           <div className="auth-header">
             <div className="brand-icon-large">
-              <Heart className="brand-heart-large" />
+              <img className="brand-logo-large" src={sillahLogo} alt="Sillah logo" />
             </div>
             <h1 className="auth-title">{t("signup.title")}</h1>
             <p className="auth-subtitle">{t("signup.subtitle")}</p>

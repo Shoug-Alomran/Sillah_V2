@@ -9,6 +9,10 @@ import {
   UsersRound,
 } from "lucide-react";
 import { api } from "../../api";
+import LanguageToggle from "../../Components/LanguageToggle";
+import OnboardingPrompt from "../../Components/OnboardingPrompt";
+import Tooltip from "../../Components/Tooltip";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 function normalizeRows(payload) {
   if (Array.isArray(payload)) return payload;
@@ -32,23 +36,29 @@ function ErrorMessage({ error }) {
   return <p className="phase-error">{error}</p>;
 }
 
+function InlineError({ error }) {
+  if (!error) return null;
+  return <p className="inline-field-error phase-inline-error">{error}</p>;
+}
+
 function Tabs({ tab, setTab }) {
+  const { t } = useLanguage();
   const tabs = [
-    { label: "Users", icon: UsersRound },
-    { label: "Family Members", icon: UsersRound },
-    { label: "Queries", icon: Database },
+    { value: "Users", label: t("phase5.usersTab"), icon: UsersRound },
+    { value: "Family Members", label: t("phase5.familyTab"), icon: UsersRound },
+    { value: "Queries", label: t("phase5.queriesTab"), icon: Database },
   ];
 
   return (
     <div className="phase-tabs" role="tablist" aria-label="Phase 5 demo sections">
       {tabs.map((item) => {
         const Icon = item.icon;
-        const active = tab === item.label;
+        const active = tab === item.value;
 
         return (
           <button
-            key={item.label}
-            onClick={() => setTab(item.label)}
+            key={item.value}
+            onClick={() => setTab(item.value)}
             className={`phase-tab ${active ? "phase-tab--active" : ""}`}
             type="button"
             role="tab"
@@ -64,8 +74,10 @@ function Tabs({ tab, setTab }) {
 }
 
 function Users() {
+  const { t } = useLanguage();
   const [rows, setRows] = useState([]);
   const [err, setErr] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [form, setForm] = useState({
     first_name: "",
@@ -73,6 +85,23 @@ function Users() {
     email: "",
     phone_number: "",
   });
+
+  function validate(nextForm = form) {
+    const errors = {};
+    if (!nextForm.first_name.trim()) errors.first_name = t("phase5.validationFirstName");
+    if (!nextForm.last_name.trim()) errors.last_name = t("phase5.validationLastName");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextForm.email.trim())) {
+      errors.email = t("phase5.validationEmail");
+    }
+    if (!nextForm.phone_number.trim()) errors.phone_number = t("phase5.validationPhone");
+    return errors;
+  }
+
+  function updateField(field, value) {
+    const nextForm = { ...form, [field]: value };
+    setForm(nextForm);
+    setFieldErrors(validate(nextForm));
+  }
 
   async function load() {
     setErr("");
@@ -91,9 +120,14 @@ function Users() {
   async function add(e) {
     e.preventDefault();
     setErr("");
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     try {
       await api("/api/users", { method: "POST", body: JSON.stringify(form) });
       setForm({ first_name: "", last_name: "", email: "", phone_number: "" });
+      setFieldErrors({});
       await load();
     } catch (e) {
       setErr(String(e.message || e));
@@ -114,11 +148,9 @@ function Users() {
     <section className="phase-card">
       <div className="phase-section-header">
         <div>
-          <p className="phase-eyebrow">CRUD Table</p>
-          <h2 className="phase-section-title">Users</h2>
-          <p className="phase-section-copy">
-            Create sample users, then verify the UI refreshes from the backend.
-          </p>
+          <p className="phase-eyebrow">{t("phase5.usersEyebrow")}</p>
+          <h2 className="phase-section-title">{t("phase5.usersTitle")}</h2>
+          <p className="phase-section-copy">{t("phase5.usersCopy")}</p>
         </div>
         <div className="phase-section-icon">
           <UsersRound />
@@ -126,33 +158,45 @@ function Users() {
       </div>
 
       <form onSubmit={add} className="phase-form phase-form--four">
-        <input
-          className="phase-input"
-          placeholder="First name"
-          value={form.first_name}
-          onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-        />
-        <input
-          className="phase-input"
-          placeholder="Last name"
-          value={form.last_name}
-          onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-        />
-        <input
-          className="phase-input"
-          placeholder="Email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-        />
-        <input
-          className="phase-input"
-          placeholder="Phone number"
-          value={form.phone_number}
-          onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
-        />
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.first_name ? "form-input--error" : ""}`}
+            placeholder={t("phase5.firstName")}
+            value={form.first_name}
+            onChange={(e) => updateField("first_name", e.target.value)}
+          />
+          <InlineError error={fieldErrors.first_name} />
+        </div>
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.last_name ? "form-input--error" : ""}`}
+            placeholder={t("phase5.lastName")}
+            value={form.last_name}
+            onChange={(e) => updateField("last_name", e.target.value)}
+          />
+          <InlineError error={fieldErrors.last_name} />
+        </div>
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.email ? "form-input--error" : ""}`}
+            placeholder={t("phase5.email")}
+            value={form.email}
+            onChange={(e) => updateField("email", e.target.value)}
+          />
+          <InlineError error={fieldErrors.email} />
+        </div>
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.phone_number ? "form-input--error" : ""}`}
+            placeholder={t("phase5.phone")}
+            value={form.phone_number}
+            onChange={(e) => updateField("phone_number", e.target.value)}
+          />
+          <InlineError error={fieldErrors.phone_number} />
+        </div>
         <button className="phase-primary-btn" type="submit">
           <Plus className="phase-btn-icon" />
-          Add User
+          {t("phase5.addUser")}
         </button>
       </form>
 
@@ -167,7 +211,7 @@ function Users() {
               <th>last_name</th>
               <th>email</th>
               <th>phone_number</th>
-              <th>action</th>
+              <th>{t("phase5.columns.action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -179,24 +223,28 @@ function Users() {
                 <td>{r.email}</td>
                 <td>{r.phone_number}</td>
                 <td>
-                  <button className="phase-delete-btn" onClick={() => del(r.user_id)} type="button">
-                    <Trash2 className="phase-btn-icon" />
-                    Delete
-                  </button>
+                  <Tooltip content={t("phase5.deleteUserHelp")}>
+                    <button className="phase-delete-btn" onClick={() => del(r.user_id)} type="button">
+                      <Trash2 className="phase-btn-icon" />
+                      {t("phase5.delete")}
+                    </button>
+                  </Tooltip>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && <EmptyTable message="No users loaded yet." />}
+        {rows.length === 0 && <EmptyTable message={t("phase5.noUsers")} />}
       </div>
     </section>
   );
 }
 
 function FamilyMembers() {
+  const { t } = useLanguage();
   const [rows, setRows] = useState([]);
   const [err, setErr] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [form, setForm] = useState({
     user_id: "",
@@ -205,6 +253,22 @@ function FamilyMembers() {
     date_of_birth: "",
     relationship: "",
   });
+
+  function validate(nextForm = form) {
+    const errors = {};
+    if (!/^\d+$/.test(String(nextForm.user_id).trim())) errors.user_id = t("phase5.validationUserId");
+    if (!nextForm.first_name.trim()) errors.first_name = t("phase5.validationFirstName");
+    if (!nextForm.last_name.trim()) errors.last_name = t("phase5.validationLastName");
+    if (!nextForm.date_of_birth) errors.date_of_birth = t("phase5.validationDate");
+    if (!nextForm.relationship.trim()) errors.relationship = t("phase5.validationRelationship");
+    return errors;
+  }
+
+  function updateField(field, value) {
+    const nextForm = { ...form, [field]: value };
+    setForm(nextForm);
+    setFieldErrors(validate(nextForm));
+  }
 
   async function load() {
     setErr("");
@@ -223,12 +287,17 @@ function FamilyMembers() {
   async function add(e) {
     e.preventDefault();
     setErr("");
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     try {
       await api("/api/family-members", {
         method: "POST",
         body: JSON.stringify({ ...form, user_id: Number(form.user_id) }),
       });
       setForm({ user_id: "", first_name: "", last_name: "", date_of_birth: "", relationship: "" });
+      setFieldErrors({});
       await load();
     } catch (e) {
       setErr(String(e.message || e));
@@ -249,11 +318,9 @@ function FamilyMembers() {
     <section className="phase-card">
       <div className="phase-section-header">
         <div>
-          <p className="phase-eyebrow">Relational Data</p>
-          <h2 className="phase-section-title">Family Members</h2>
-          <p className="phase-section-copy">
-            Add family-member rows connected to existing users and inspect joined emails.
-          </p>
+          <p className="phase-eyebrow">{t("phase5.familyEyebrow")}</p>
+          <h2 className="phase-section-title">{t("phase5.familyTitle")}</h2>
+          <p className="phase-section-copy">{t("phase5.familyCopy")}</p>
         </div>
         <div className="phase-section-icon">
           <UsersRound />
@@ -261,39 +328,56 @@ function FamilyMembers() {
       </div>
 
       <form onSubmit={add} className="phase-form phase-form--five">
-        <input
-          className="phase-input"
-          placeholder="user_id (existing)"
-          value={form.user_id}
-          onChange={(e) => setForm({ ...form, user_id: e.target.value })}
-        />
-        <input
-          className="phase-input"
-          placeholder="First name"
-          value={form.first_name}
-          onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-        />
-        <input
-          className="phase-input"
-          placeholder="Last name"
-          value={form.last_name}
-          onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-        />
-        <input
-          className="phase-input"
-          type="date"
-          value={form.date_of_birth}
-          onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
-        />
-        <input
-          className="phase-input"
-          placeholder="Relationship"
-          value={form.relationship}
-          onChange={(e) => setForm({ ...form, relationship: e.target.value })}
-        />
+        <div>
+          <Tooltip content={t("phase5.userIdHelp")}>
+            <input
+              className={`phase-input ${fieldErrors.user_id ? "form-input--error" : ""}`}
+              placeholder={t("phase5.userId")}
+              value={form.user_id}
+              onChange={(e) => updateField("user_id", e.target.value)}
+            />
+          </Tooltip>
+          <InlineError error={fieldErrors.user_id} />
+        </div>
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.first_name ? "form-input--error" : ""}`}
+            placeholder={t("phase5.firstName")}
+            value={form.first_name}
+            onChange={(e) => updateField("first_name", e.target.value)}
+          />
+          <InlineError error={fieldErrors.first_name} />
+        </div>
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.last_name ? "form-input--error" : ""}`}
+            placeholder={t("phase5.lastName")}
+            value={form.last_name}
+            onChange={(e) => updateField("last_name", e.target.value)}
+          />
+          <InlineError error={fieldErrors.last_name} />
+        </div>
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.date_of_birth ? "form-input--error" : ""}`}
+            type="date"
+            value={form.date_of_birth}
+            onChange={(e) => updateField("date_of_birth", e.target.value)}
+          />
+          <InlineError error={fieldErrors.date_of_birth} />
+        </div>
+        <div>
+          <input
+            className={`phase-input ${fieldErrors.relationship ? "form-input--error" : ""}`}
+            placeholder={t("phase5.relationship")}
+            value={form.relationship}
+            onChange={(e) => updateField("relationship", e.target.value)}
+          />
+          <InlineError error={fieldErrors.relationship} />
+        </div>
         <button className="phase-primary-btn" type="submit">
           <Plus className="phase-btn-icon" />
-          Add Family Member
+          {t("phase5.addFamilyMember")}
         </button>
       </form>
 
@@ -305,11 +389,11 @@ function FamilyMembers() {
             <tr>
               <th>member_id</th>
               <th>user_id</th>
-              <th>name</th>
+              <th>{t("phase5.columns.name")}</th>
               <th>relationship</th>
               <th>date_of_birth</th>
               <th>user_email</th>
-              <th>action</th>
+              <th>{t("phase5.columns.action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -324,27 +408,39 @@ function FamilyMembers() {
                 <td>{String(r.date_of_birth || "").slice(0, 10)}</td>
                 <td>{r.user_email}</td>
                 <td>
-                  <button className="phase-delete-btn" onClick={() => del(r.member_id)} type="button">
-                    <Trash2 className="phase-btn-icon" />
-                    Delete
-                  </button>
+                  <Tooltip content={t("phase5.deleteFamilyHelp")}>
+                    <button className="phase-delete-btn" onClick={() => del(r.member_id)} type="button">
+                      <Trash2 className="phase-btn-icon" />
+                      {t("phase5.delete")}
+                    </button>
+                  </Tooltip>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && <EmptyTable message="No family members loaded yet." />}
+        {rows.length === 0 && <EmptyTable message={t("phase5.noFamily")} />}
       </div>
     </section>
   );
 }
 
 function Queries() {
+  const { t } = useLanguage();
   const [qid, setQid] = useState("q24");
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
+  const [fieldError, setFieldError] = useState("");
+
+  function validate(value = qid) {
+    return /^q\d{2}$/i.test(value.trim()) ? "" : t("phase5.validationQuery");
+  }
 
   async function runQuery() {
+    const error = validate();
+    setFieldError(error);
+    if (error) return;
+
     setErr("");
     setResult(null);
     try {
@@ -359,11 +455,9 @@ function Queries() {
     <section className="phase-card">
       <div className="phase-section-header">
         <div>
-          <p className="phase-eyebrow">SQL Showcase</p>
-          <h2 className="phase-section-title">Queries q01-q40</h2>
-          <p className="phase-section-copy">
-            Run stored query endpoints and preview the JSON returned by the backend.
-          </p>
+          <p className="phase-eyebrow">{t("phase5.queriesEyebrow")}</p>
+          <h2 className="phase-section-title">{t("phase5.queriesTitle")}</h2>
+          <p className="phase-section-copy">{t("phase5.queriesCopy")}</p>
         </div>
         <div className="phase-section-icon">
           <Database />
@@ -371,17 +465,26 @@ function Queries() {
       </div>
 
       <div className="phase-query-bar">
-        <input
-          className="phase-input phase-query-input"
-          value={qid}
-          onChange={(e) => setQid(e.target.value)}
-          placeholder="q01 ... q40"
-        />
+        <div>
+          <Tooltip content={t("phase5.queryHelp")}>
+            <input
+              className={`phase-input phase-query-input ${fieldError ? "form-input--error" : ""}`}
+              value={qid}
+              onChange={(e) => {
+                setQid(e.target.value);
+                setFieldError(validate(e.target.value));
+              }}
+              placeholder="q01 ... q40"
+              aria-label={t("phase5.queryId")}
+            />
+          </Tooltip>
+          <InlineError error={fieldError} />
+        </div>
         <button className="phase-primary-btn" onClick={runQuery} type="button">
           <Play className="phase-btn-icon" />
-          Run Query
+          {t("phase5.runQuery")}
         </button>
-        <span className="phase-query-hint">Try: q24, q22, q36</span>
+        <span className="phase-query-hint">{t("phase5.tryQueries")}</span>
       </div>
 
       <ErrorMessage error={err} />
@@ -396,6 +499,7 @@ function Queries() {
 
 export default function Phase5Demo() {
   const [tab, setTab] = useState("Users");
+  const { t } = useLanguage();
 
   return (
     <div className="phase-page">
@@ -403,24 +507,32 @@ export default function Phase5Demo() {
       <div className="phase-bg-orb phase-bg-orb--two" />
 
       <main className="phase-container">
+        <div className="phase-language-row">
+          <LanguageToggle />
+        </div>
+
         <section className="phase-hero">
           <div>
             <div className="phase-hero-badge">
               <Sparkles className="phase-hero-badge-icon" />
-              CS340 Phase 5 Integration
+              {t("phase5.badge")}
             </div>
-            <h1 className="phase-title">Sillah Phase 5 Demo</h1>
-            <p className="phase-subtitle">
-              A polished database demo that connects the React interface to the MySQL/Express backend and runs SQL through the application.
-            </p>
+            <h1 className="phase-title">{t("phase5.title")}</h1>
+            <p className="phase-subtitle">{t("phase5.subtitle")}</p>
           </div>
 
           <div className="phase-hero-card">
             <Server className="phase-hero-card-icon" />
-            <span>React UI</span>
-            <strong>MySQL + Express</strong>
+            <span>{t("phase5.stackTop")}</span>
+            <strong>{t("phase5.stackBottom")}</strong>
           </div>
         </section>
+
+        <OnboardingPrompt
+          storageKey="sillah-phase5-onboarding"
+          title={t("phase5.onboardingTitle")}
+          body={t("phase5.onboardingBody")}
+        />
 
         <Tabs tab={tab} setTab={setTab} />
 

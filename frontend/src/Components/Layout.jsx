@@ -18,6 +18,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import LanguageToggle from "./LanguageToggle";
 import Tooltip from "./Tooltip";
+import sillahLogo from "../assets/sillah-logo.png";
 
 export default function Layout({ children, currentPageName }) {
   const { logout, isDoctor, isPatient } = useAuth();
@@ -92,7 +93,7 @@ export default function Layout({ children, currentPageName }) {
         <div className="top-nav-inner">
           <Link to="/dashboard" className="brand">
             <div className="brand-icon">
-              <Heart className="brand-heart" />
+              <img className="brand-logo" src={sillahLogo} alt="Sillah logo" />
             </div>
             <div className="brand-text">
               <div className="brand-title">{t("common.appName")}</div>
@@ -145,7 +146,7 @@ export default function Layout({ children, currentPageName }) {
         <div className="app-footer-inner">
           <div className="footer-col">
             <h3 className="footer-title">
-              <Heart className="footer-heart" />
+              <img className="footer-logo" src={sillahLogo} alt="Sillah logo" />
               {t("common.appName")}
             </h3>
             <p className="footer-text">

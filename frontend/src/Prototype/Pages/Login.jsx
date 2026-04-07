@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Heart, Mail, Lock, AlertCircle } from "lucide-react";
+import { Mail, Lock, AlertCircle } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import LanguageToggle from "../../Components/LanguageToggle";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
+import sillahLogo from "../../assets/sillah-logo.png";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -72,7 +73,7 @@ export default function Login() {
 
           <div className="auth-header">
             <div className="brand-icon-large">
-              <Heart className="brand-heart-large" />
+              <img className="brand-logo-large" src={sillahLogo} alt="Sillah logo" />
             </div>
             <h1 className="auth-title">{t("login.title")}</h1>
             <p className="auth-subtitle">{t("login.subtitle")}</p>
