@@ -44,6 +44,11 @@ function StatusBadge({ status }) {
   return <span className={`admin-status-badge admin-status-badge--${value}`}>{value}</span>;
 }
 
+function getAdminErrorMessage(result) {
+  const details = [result?.error, result?.code, result?.details, result?.hint].filter(Boolean);
+  return details.length > 0 ? details.join(" - ") : "Admin request failed.";
+}
+
 export default function AdminOperations() {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState("users");
@@ -87,7 +92,7 @@ export default function AdminOperations() {
         headers,
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Admin request failed.");
+      if (!response.ok) throw new Error(getAdminErrorMessage(result));
       return result;
     },
     [authHeaders]
@@ -99,7 +104,7 @@ export default function AdminOperations() {
     try {
       setLoading(true);
       setError("");
-      const [overviewResult, usersResult, clinicsResult, contentResult, auditResult] = await Promise.all([
+      const [overviewResult, usersResult, clinicsResult, contentResult, auditResult] = await Promise.allSettled([
         adminFetch("overview"),
         adminFetch("users"),
         adminFetch("clinics"),
@@ -107,11 +112,19 @@ export default function AdminOperations() {
         adminFetch("audit"),
       ]);
 
-      setOverview(overviewResult.overview || null);
-      setUsers(usersResult.users || []);
-      setClinics(clinicsResult.clinics || []);
-      setContent(contentResult.content || []);
-      setAuditLogs(auditResult.logs || []);
+      if (overviewResult.status === "fulfilled") setOverview(overviewResult.value.overview || null);
+      if (usersResult.status === "fulfilled") setUsers(usersResult.value.users || []);
+      if (clinicsResult.status === "fulfilled") setClinics(clinicsResult.value.clinics || []);
+      if (contentResult.status === "fulfilled") setContent(contentResult.value.content || []);
+      if (auditResult.status === "fulfilled") setAuditLogs(auditResult.value.logs || []);
+
+      const failedRequests = [overviewResult, usersResult, clinicsResult, contentResult, auditResult].filter(
+        (result) => result.status === "rejected"
+      );
+      if (failedRequests.length > 0) {
+        const firstError = failedRequests[0].reason?.message || "Some admin data could not be loaded.";
+        setError(`${failedRequests.length} admin section(s) could not load: ${firstError}`);
+      }
     } catch (loadError) {
       console.error("Admin operations load failed:", loadError);
       setError(loadError.message || "Unable to load admin operations.");

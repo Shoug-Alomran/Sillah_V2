@@ -43,6 +43,19 @@ function isMissingSchemaColumn(error) {
   return error?.code === "PGRST204" || /could not find.*column/i.test(message) || /schema cache/i.test(message);
 }
 
+function isRecoverableAdminDataError(error) {
+  return isMissingTable(error) || isMissingSchemaColumn(error);
+}
+
+async function safeValue(label, promise, fallback) {
+  try {
+    return await promise;
+  } catch (error) {
+    console.warn(`ADMIN_${label}_SKIPPED`, error?.message || error);
+    return fallback;
+  }
+}
+
 async function requireAdmin(req) {
   const admin = getSupabaseAdmin();
   const user = await getAuthenticatedUser(req, admin);
@@ -65,7 +78,7 @@ async function writeAudit(admin, actorId, actionType, targetType, targetId, deta
     details,
   });
 
-  if (error && !isMissingTable(error)) {
+  if (error && !isRecoverableAdminDataError(error)) {
     console.warn("ADMIN_AUDIT_LOG_SKIPPED", error.message);
   }
 }
@@ -76,21 +89,29 @@ async function safeCount(admin, tableName, filters = []) {
 
   const { count, error } = await query;
   if (error) {
-    if (isMissingTable(error)) return 0;
-    throw error;
+    console.warn(`ADMIN_COUNT_${tableName}_SKIPPED`, error.message);
+    return 0;
   }
   return count || 0;
 }
 
 async function getOverview(admin) {
   const [patients, doctors, admins, clinics, pendingDoctors, pendingContent, auditLogs] = await Promise.all([
-    safeCount(admin, "profiles", [{ method: "eq", args: ["role", "patient"] }]),
-    safeCount(admin, "profiles", [{ method: "eq", args: ["role", "doctor"] }]),
-    safeCount(admin, "profiles", [{ method: "eq", args: ["role", "admin"] }]),
-    safeCount(admin, "clinics"),
-    safeCount(admin, "doctor_profiles", [{ method: "eq", args: ["verification_status", "pending"] }]),
-    safeCount(admin, "awareness_content", [{ method: "eq", args: ["status", "pending"] }]),
-    listAuditLogs(admin, 6),
+    safeValue("OVERVIEW_PATIENT_COUNT", safeCount(admin, "profiles", [{ method: "eq", args: ["role", "patient"] }]), 0),
+    safeValue("OVERVIEW_DOCTOR_COUNT", safeCount(admin, "profiles", [{ method: "eq", args: ["role", "doctor"] }]), 0),
+    safeValue("OVERVIEW_ADMIN_COUNT", safeCount(admin, "profiles", [{ method: "eq", args: ["role", "admin"] }]), 0),
+    safeValue("OVERVIEW_CLINIC_COUNT", safeCount(admin, "clinics"), 0),
+    safeValue(
+      "OVERVIEW_PENDING_DOCTOR_COUNT",
+      safeCount(admin, "doctor_profiles", [{ method: "eq", args: ["verification_status", "pending"] }]),
+      0
+    ),
+    safeValue(
+      "OVERVIEW_PENDING_CONTENT_COUNT",
+      safeCount(admin, "awareness_content", [{ method: "eq", args: ["status", "pending"] }]),
+      0
+    ),
+    safeValue("OVERVIEW_AUDIT_LOGS", listAuditLogs(admin, 6), []),
   ]);
 
   return {
@@ -105,10 +126,31 @@ async function getOverview(admin) {
 }
 
 async function listUsers(admin) {
-  const { data: profiles, error } = await admin
+  const query = admin
     .from("profiles")
     .select(PUBLIC_PROFILE_FIELDS)
     .order("created_at", { ascending: false, nullsFirst: false });
+  const { data: profiles, error } = await query;
+
+  if (error && isMissingSchemaColumn(error)) {
+    const { data: fallbackProfiles, error: fallbackError } = await admin
+      .from("profiles")
+      .select("id, email, full_name, phone_number, role, created_at")
+      .order("created_at", { ascending: false, nullsFirst: false });
+
+    if (fallbackError) throw fallbackError;
+    return (fallbackProfiles || []).map((profile) => ({
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name,
+      phone_number: profile.phone_number,
+      role: profile.role,
+      patient_code: null,
+      selected_doctor_id: null,
+      created_at: profile.created_at,
+    }));
+  }
+
   if (error) throw error;
 
   return (profiles || []).map((profile) => ({
@@ -223,7 +265,7 @@ async function listContent(admin) {
     .select(CONTENT_FIELDS)
     .order("updated_at", { ascending: false, nullsFirst: false });
   if (error) {
-    if (isMissingTable(error)) return [];
+    if (isRecoverableAdminDataError(error)) return [];
     throw error;
   }
   return data || [];
@@ -280,7 +322,7 @@ async function listAuditLogs(admin, limit = 25) {
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
-    if (isMissingTable(error)) return [];
+    if (isRecoverableAdminDataError(error)) return [];
     throw error;
   }
   return data || [];
@@ -331,6 +373,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
   } catch (error) {
     console.error("ADMIN_OPERATIONS_ERROR", error);
-    return res.status(500).json({ error: error.message || "Admin operation failed." });
+    return res.status(500).json({
+      error: error.message || "Admin operation failed.",
+      code: error.code || null,
+      details: error.details || null,
+      hint: error.hint || null,
+    });
   }
 }
