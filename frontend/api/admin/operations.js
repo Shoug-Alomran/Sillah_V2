@@ -28,7 +28,19 @@ async function getProfile(admin, userId) {
 }
 
 function isMissingTable(error) {
-  return error?.code === "42P01" || /does not exist/i.test(error?.message || "");
+  const message = error?.message || "";
+  return (
+    error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    /does not exist/i.test(message) ||
+    /schema cache/i.test(message) ||
+    /could not find the table/i.test(message)
+  );
+}
+
+function isMissingSchemaColumn(error) {
+  const message = error?.message || "";
+  return error?.code === "PGRST204" || /could not find.*column/i.test(message) || /schema cache/i.test(message);
 }
 
 async function requireAdmin(req) {
@@ -158,7 +170,25 @@ async function listClinics(admin) {
     .from("clinics")
     .select(CLINIC_FIELDS)
     .order("created_at", { ascending: false, nullsFirst: false });
-  if (error) throw error;
+  if (error) {
+    if (isMissingTable(error)) return [];
+    if (isMissingSchemaColumn(error)) {
+      const { data: fallbackData, error: fallbackError } = await admin
+        .from("clinics")
+        .select("id, name, location")
+        .order("name", { ascending: true });
+      if (fallbackError) {
+        if (isMissingTable(fallbackError)) return [];
+        throw fallbackError;
+      }
+      return (fallbackData || []).map((clinic) => ({
+        ...clinic,
+        contact_number: null,
+        created_at: null,
+      }));
+    }
+    throw error;
+  }
   return data || [];
 }
 

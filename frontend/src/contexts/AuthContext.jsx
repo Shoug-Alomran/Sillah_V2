@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { api } from "../api";
 
 const AuthContext = createContext(null);
-const AUTH_TIMEOUT_MS = 15000;
+const AUTH_TIMEOUT_MS = 30000;
 
 function withTimeout(promise, label, timeoutMs = AUTH_TIMEOUT_MS) {
   let timeoutId;
@@ -14,6 +14,10 @@ function withTimeout(promise, label, timeoutMs = AUTH_TIMEOUT_MS) {
   });
 
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
+function isTimeoutError(error) {
+  return /timed out/i.test(error?.message || "");
 }
 
 export function AuthProvider({ children }) {
@@ -43,7 +47,7 @@ export function AuthProvider({ children }) {
 
       if (error) {
         console.warn("Profile loading failed:", error.message);
-        setProfile(null);
+        if (!isTimeoutError(error)) setProfile(null);
         setProfileError(error.message || "Unable to load your profile.");
         return;
       }
@@ -55,7 +59,7 @@ export function AuthProvider({ children }) {
       setProfile(data);
     } catch (error) {
       console.warn("Profile loading failed:", error.message);
-      setProfile(null);
+      if (!isTimeoutError(error)) setProfile(null);
       setProfileError(error.message || "Unable to load your profile.");
     }
   }
