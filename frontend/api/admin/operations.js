@@ -7,6 +7,7 @@ const CONTENT_FIELDS =
   "id, title, summary, category, reading_time, image_url, content_body, status, is_featured, created_at, updated_at, reviewed_at, reviewed_by";
 const CONTENT_LEGACY_FIELDS = "id, title, summary, category, reading_time, status, is_featured, created_at, updated_at";
 const CONTENT_MINIMAL_FIELDS = "id, title, summary";
+const CONTENT_TITLE_ONLY_FIELDS = "id, title";
 const AUDIT_FIELDS = "id, actor_id, action_type, target_type, target_id, details, created_at";
 
 async function getAuthenticatedUser(req, admin) {
@@ -287,12 +288,26 @@ async function listContent(admin) {
         .select(CONTENT_MINIMAL_FIELDS)
         .order("title", { ascending: true });
 
-      if (minimalError) {
-        if (isRecoverableAdminDataError(minimalError)) return [];
+      if (!minimalError) {
+        return (minimalData || []).map(normalizeAwarenessContent);
+      }
+
+      if (!isMissingSchemaColumn(minimalError)) {
+        if (isMissingTable(minimalError)) return [];
         throw minimalError;
       }
 
-      return (minimalData || []).map(normalizeAwarenessContent);
+      const { data: titleOnlyData, error: titleOnlyError } = await admin
+        .from("awareness_content")
+        .select(CONTENT_TITLE_ONLY_FIELDS)
+        .order("title", { ascending: true });
+
+      if (titleOnlyError) {
+        if (isRecoverableAdminDataError(titleOnlyError)) return [];
+        throw titleOnlyError;
+      }
+
+      return (titleOnlyData || []).map(normalizeAwarenessContent);
     }
     if (isMissingTable(error)) return [];
     throw error;
@@ -373,6 +388,12 @@ async function upsertContent(admin, actorId, body) {
         summary: content.summary,
       },
       fields: CONTENT_MINIMAL_FIELDS,
+    },
+    {
+      payload: {
+        title: content.title,
+      },
+      fields: CONTENT_TITLE_ONLY_FIELDS,
     },
   ];
 
