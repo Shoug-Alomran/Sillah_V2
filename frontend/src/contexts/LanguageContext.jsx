@@ -35,6 +35,10 @@ const translations = {
       patients: "My Patients",
       logout: "Logout",
       menu: "Toggle menu",
+      helpCenter: "Help Center",
+      privacyPolicy: "Privacy Policy",
+      termsOfService: "Terms of Service",
+      contactUs: "Contact Us",
     },
     login: {
       title: "Welcome to Sillah (صلة)",
@@ -329,6 +333,10 @@ const translations = {
       patients: "مرضاي",
       logout: "تسجيل الخروج",
       menu: "فتح القائمة",
+      helpCenter: "مركز المساعدة",
+      privacyPolicy: "سياسة الخصوصية",
+      termsOfService: "شروط الخدمة",
+      contactUs: "تواصل معنا",
     },
     login: {
       title: "مرحباً بك في صلة",

@@ -172,10 +172,10 @@ export default function Layout({ children, currentPageName }) {
           <div className="footer-col">
             <h4 className="footer-subtitle">Support</h4>
             <div className="footer-links">
-              <a href="#" className="footer-link">Help Center</a>
-              <a href="#" className="footer-link">Privacy Policy</a>
-              <a href="#" className="footer-link">Terms of Service</a>
-              <a href="#" className="footer-link">Contact Us</a>
+              <Link to="/help-center" className="footer-link">{t("layout.helpCenter")}</Link>
+              <Link to="/privacy-policy" className="footer-link">{t("layout.privacyPolicy")}</Link>
+              <Link to="/terms-of-service" className="footer-link">{t("layout.termsOfService")}</Link>
+              <Link to="/contact-us" className="footer-link">{t("layout.contactUs")}</Link>
             </div>
           </div>
         </div>

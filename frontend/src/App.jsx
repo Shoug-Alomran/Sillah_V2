@@ -20,6 +20,18 @@ const RiskAssessment = lazy(() => import("./Prototype/Pages/RiskAssessment.jsx")
 const Patients = lazy(() => import("./Prototype/Pages/Patients.jsx"));
 const PatientDetail = lazy(() => import("./Prototype/Pages/PatientDetail.jsx"));
 const Phase5Demo = lazy(() => import("./Prototype/Pages/Phase5Demo.jsx"));
+const HelpCenterPage = lazy(() =>
+  import("./Prototype/Pages/SupportPages.jsx").then((module) => ({ default: module.HelpCenterPage }))
+);
+const PrivacyPolicyPage = lazy(() =>
+  import("./Prototype/Pages/SupportPages.jsx").then((module) => ({ default: module.PrivacyPolicyPage }))
+);
+const TermsOfServicePage = lazy(() =>
+  import("./Prototype/Pages/SupportPages.jsx").then((module) => ({ default: module.TermsOfServicePage }))
+);
+const ContactUsPage = lazy(() =>
+  import("./Prototype/Pages/SupportPages.jsx").then((module) => ({ default: module.ContactUsPage }))
+);
 
 function Shell({ pageName, children }) {
   return <Layout currentPageName={pageName}>{children}</Layout>;
@@ -91,6 +103,38 @@ export default function App() {
           <Route path="/appointments" element={<ProtectedRoute><Shell pageName="Appointments"><Appointments /></Shell></ProtectedRoute>} />
           <Route path="/clinics" element={<ProtectedRoute><Shell pageName="Clinics"><Clinics /></Shell></ProtectedRoute>} />
           <Route path="/awareness-hub" element={<ProtectedRoute><Shell pageName="AwarenessHub"><AwarenessHub /></Shell></ProtectedRoute>} />
+          <Route
+            path="/help-center"
+            element={
+              <ProtectedRoute>
+                <Shell pageName="HelpCenter"><HelpCenterPage /></Shell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/privacy-policy"
+            element={
+              <ProtectedRoute>
+                <Shell pageName="PrivacyPolicy"><PrivacyPolicyPage /></Shell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/terms-of-service"
+            element={
+              <ProtectedRoute>
+                <Shell pageName="TermsOfService"><TermsOfServicePage /></Shell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contact-us"
+            element={
+              <ProtectedRoute>
+                <Shell pageName="ContactUs"><ContactUsPage /></Shell>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/family-tree"
             element={
