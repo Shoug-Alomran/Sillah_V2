@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import Layout from "./Components/Layout.jsx";
@@ -137,6 +138,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
+      <Analytics />
       <SpeedInsights />
     </>
   );
