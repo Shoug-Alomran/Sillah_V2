@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, Search, Clock, CheckCircle, Star } from "lucide-react";
+import { supabase } from "../../lib/supabaseClient";
 
 // Mock Data (replace later with Firestore/Supabase fetch)
 const mockContent = [
@@ -72,22 +73,50 @@ const mockContent = [
 export default function AwarenessHub() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [managedContent, setManagedContent] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchManagedContent() {
+      try {
+        const { data, error } = await supabase
+          .from("awareness_content")
+          .select("id, title, summary, category, reading_time, image_url, is_featured, status, updated_at")
+          .eq("status", "approved")
+          .order("updated_at", { ascending: false, nullsFirst: false });
+
+        if (error) throw error;
+        if (!cancelled) setManagedContent(data || []);
+      } catch (error) {
+        console.warn("Using fallback awareness content:", error?.message);
+        if (!cancelled) setManagedContent([]);
+      }
+    }
+
+    fetchManagedContent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const contentItems = managedContent.length > 0 ? managedContent : mockContent;
 
   // Build categories from data (prevents mismatch)
   const categories = useMemo(() => {
-    const set = new Set(mockContent.map((c) => c.category).filter(Boolean));
+    const set = new Set(contentItems.map((c) => c.category).filter(Boolean));
     return Array.from(set);
-  }, []);
+  }, [contentItems]);
 
   const featuredContent = useMemo(
-    () => mockContent.filter((c) => c.is_featured),
-    []
+    () => contentItems.filter((c) => c.is_featured),
+    [contentItems]
   );
 
   const filteredContent = useMemo(() => {
     const s = searchTerm.trim().toLowerCase();
 
-    return mockContent.filter((item) => {
+    return contentItems.filter((item) => {
       const title = (item.title || "").toLowerCase();
       const summary = (item.summary || "").toLowerCase();
       const category = item.category || "";
@@ -98,7 +127,7 @@ export default function AwarenessHub() {
 
       return matchesSearch && matchesCategory;
     });
-  }, [searchTerm, selectedCategory]);
+  }, [contentItems, searchTerm, selectedCategory]);
 
   const getCategoryColor = (category) => {
     const colors = {

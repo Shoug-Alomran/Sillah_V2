@@ -1,8 +1,9 @@
 // frontend/src/Prototype/Pages/Clinics.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { MapPin, Search, Star, Phone, Clock, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabaseClient";
 import { clinicsData } from "../../data/clinics";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
@@ -13,8 +14,46 @@ export default function Clinics() {
   const [searchTerm, setSearchTerm] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
+  const [managedClinics, setManagedClinics] = useState([]);
 
-  const clinics = Array.isArray(clinicsData) ? clinicsData : [];
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchManagedClinics() {
+      try {
+        const { data, error } = await supabase
+          .from("clinics")
+          .select("id, name, location, contact_number, created_at")
+          .order("created_at", { ascending: false, nullsFirst: false });
+        if (error) throw error;
+        if (!cancelled) {
+          setManagedClinics(
+            (data || []).map((clinic) => ({
+              ...clinic,
+              specialty: "General Practice",
+              address: clinic.location,
+              phone: clinic.contact_number,
+              certified: true,
+              rating: 4.8,
+              reviews: 0,
+              hours: "Contact clinic",
+              available_slots: [],
+            }))
+          );
+        }
+      } catch (error) {
+        console.warn("Using fallback clinic content:", error?.message);
+        if (!cancelled) setManagedClinics([]);
+      }
+    }
+
+    fetchManagedClinics();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const clinics = managedClinics.length > 0 ? managedClinics : Array.isArray(clinicsData) ? clinicsData : [];
 
   const specialties = useMemo(() => {
     const set = new Set();

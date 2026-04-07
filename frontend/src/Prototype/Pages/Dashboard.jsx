@@ -390,6 +390,10 @@ export default function Dashboard() {
           <div className="quick-actions-grid">
             {isAdmin ? (
               <>
+                <Link to="/admin/operations" className="quick-action-btn btn-purple">
+                  <Shield className="quick-action-icon" />
+                  Admin Operations
+                </Link>
                 <Link to="/admin/doctor-verification" className="quick-action-btn btn-teal">
                   <ClipboardCheck className="quick-action-icon" />
                   Review Doctor Profiles

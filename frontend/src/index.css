@@ -846,6 +846,20 @@ body {
   font-size: 0.875rem;
 }
 
+.auth-success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
 .auth-info {
   background: #ecfeff;
   border: 1px solid #a5f3fc;
@@ -3479,6 +3493,167 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.admin-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+}
+
+.admin-overview-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(20, 184, 166, 0.18);
+}
+
+.admin-overview-card svg {
+  flex-shrink: 0;
+  color: #14b8a6;
+}
+
+.admin-overview-card p {
+  margin: 0;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.admin-overview-card strong {
+  display: block;
+  color: #111827;
+  font-size: 1.65rem;
+  line-height: 1.1;
+}
+
+.admin-section-heading h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 1.25rem;
+}
+
+.admin-section-heading p {
+  margin: 0.35rem 0 0 0;
+  color: #6b7280;
+  line-height: 1.55;
+}
+
+.admin-secondary-btn,
+.admin-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 0.75rem;
+  border: 1px solid #99f6e4;
+  background: white;
+  color: #0f766e;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-secondary-btn {
+  padding: 0.75rem 1rem;
+}
+
+.admin-icon-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.admin-two-column {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.3fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.admin-form-card {
+  gap: 0.85rem;
+}
+
+.admin-form-card textarea.form-input {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th {
+  background: #f8fafc;
+  color: #475569;
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.admin-table td,
+.admin-table th {
+  padding: 0.85rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+
+.admin-inline-select {
+  min-width: 8rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  background: white;
+  color: #111827;
+  font-weight: 700;
+}
+
+.admin-status-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.35rem 0.7rem;
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.admin-status-badge--admin,
+.admin-status-badge--approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.admin-status-badge--doctor,
+.admin-status-badge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.admin-status-badge--patient {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.admin-status-badge--rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.admin-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #374151;
+  font-weight: 700;
 }
 
 .admin-review-grid {
@@ -6901,4 +7076,14 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   font-size: 0.75rem;
   color: #0e7490;
   font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .admin-two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-header {
+    flex-direction: column;
+  }
 }

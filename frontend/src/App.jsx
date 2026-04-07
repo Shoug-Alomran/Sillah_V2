@@ -23,6 +23,7 @@ const Patients = lazy(() => import("./Prototype/Pages/Patients.jsx"));
 const PatientDetail = lazy(() => import("./Prototype/Pages/PatientDetail.jsx"));
 const DoctorProfile = lazy(() => import("./Prototype/Pages/DoctorProfile.jsx"));
 const AdminDoctorVerification = lazy(() => import("./Prototype/Pages/AdminDoctorVerification.jsx"));
+const AdminOperations = lazy(() => import("./Prototype/Pages/AdminOperations.jsx"));
 const Phase5Demo = lazy(() => import("./Prototype/Pages/Phase5Demo.jsx"));
 const HelpCenterPage = lazy(() =>
   import("./Prototype/Pages/SupportPages.jsx").then((module) => ({ default: module.HelpCenterPage }))
@@ -210,6 +211,16 @@ export default function App() {
           />
 
           {/* Admin */}
+          <Route
+            path="/admin/operations"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allow="admin">
+                  <Shell pageName="AdminOperations"><AdminOperations /></Shell>
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/admin/doctor-verification"
             element={

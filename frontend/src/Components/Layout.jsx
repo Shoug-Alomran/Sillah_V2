@@ -15,6 +15,7 @@ import {
   Pill,
   ClipboardCheck,
   BadgeCheck,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -63,6 +64,7 @@ export default function Layout({ children, currentPageName }) {
     if (isAdmin) {
       return [
         ...base,
+        { to: "/admin/operations", key: "AdminOperations", icon: Shield, label: "Admin Operations" },
         { to: "/admin/doctor-verification", key: "AdminDoctorVerification", icon: ClipboardCheck, label: "Doctor Verification" },
       ];
     }
