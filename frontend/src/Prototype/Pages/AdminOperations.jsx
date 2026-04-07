@@ -495,7 +495,10 @@ export default function AdminOperations() {
               {content.length === 0 ? (
                 <div className="admin-review-card">
                   <h2>No database content yet</h2>
-                  <p>Create the awareness_content table using the SQL I’ll provide, then add content here.</p>
+                  <p>
+                    Run the awareness content setup SQL, then use this panel to create, approve, and publish education
+                    articles.
+                  </p>
                 </div>
               ) : (
                 content.map((item) => (
