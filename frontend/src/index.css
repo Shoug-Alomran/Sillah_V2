@@ -40,8 +40,9 @@ body {
   border-bottom: 1px solid #e5e7eb;
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 120;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: visible;
 }
 
 .top-nav-inner {
@@ -51,6 +52,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 2rem;
+  overflow: visible;
 }
 
 .top-nav-actions {
@@ -672,13 +674,24 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: 80;
+  z-index: 1000;
 }
 
 .tooltip:hover .tooltip-bubble,
 .tooltip:focus-within .tooltip-bubble {
   opacity: 1;
   transform: translateX(-50%) translateY(-2px);
+}
+
+.top-nav .tooltip-bubble {
+  top: calc(100% + 0.5rem);
+  bottom: auto;
+  z-index: 1001;
+}
+
+.top-nav .tooltip:hover .tooltip-bubble,
+.top-nav .tooltip:focus-within .tooltip-bubble {
+  transform: translateX(-50%) translateY(2px);
 }
 
 .onboarding-prompt {
