@@ -5,7 +5,8 @@ const PUBLIC_PROFILE_FIELDS = "id, email, full_name, phone_number, role, selecte
 const CLINIC_FIELDS = "id, name, location, contact_number, created_at";
 const CONTENT_FIELDS =
   "id, title, summary, category, reading_time, image_url, content_body, status, is_featured, created_at, updated_at, reviewed_at, reviewed_by";
-const CONTENT_FALLBACK_FIELDS = "id, title, summary, category, reading_time, image_url, status, is_featured, created_at, updated_at";
+const CONTENT_LEGACY_FIELDS = "id, title, summary, category, reading_time, status, is_featured, created_at, updated_at";
+const CONTENT_MINIMAL_FIELDS = "id, title, summary";
 const AUDIT_FIELDS = "id, actor_id, action_type, target_type, target_id, details, created_at";
 
 async function getAuthenticatedUser(req, admin) {
@@ -267,42 +268,63 @@ async function listContent(admin) {
     .order("updated_at", { ascending: false, nullsFirst: false });
   if (error) {
     if (isMissingSchemaColumn(error)) {
-      const { data: fallbackData, error: fallbackError } = await admin
+      const { data: legacyData, error: legacyError } = await admin
         .from("awareness_content")
-        .select(CONTENT_FALLBACK_FIELDS)
+        .select(CONTENT_LEGACY_FIELDS)
         .order("updated_at", { ascending: false, nullsFirst: false });
 
-      if (fallbackError) {
-        if (isRecoverableAdminDataError(fallbackError)) return [];
-        throw fallbackError;
+      if (!legacyError) {
+        return (legacyData || []).map(normalizeAwarenessContent);
       }
 
-      return (fallbackData || []).map((item) => ({
-        ...item,
-        content_body: null,
-        reviewed_at: null,
-        reviewed_by: null,
-      }));
+      if (!isMissingSchemaColumn(legacyError)) {
+        if (isMissingTable(legacyError)) return [];
+        throw legacyError;
+      }
+
+      const { data: minimalData, error: minimalError } = await admin
+        .from("awareness_content")
+        .select(CONTENT_MINIMAL_FIELDS)
+        .order("title", { ascending: true });
+
+      if (minimalError) {
+        if (isRecoverableAdminDataError(minimalError)) return [];
+        throw minimalError;
+      }
+
+      return (minimalData || []).map(normalizeAwarenessContent);
     }
     if (isMissingTable(error)) return [];
     throw error;
   }
-  return data || [];
+  return (data || []).map(normalizeAwarenessContent);
 }
 
-async function selectContent(admin, query) {
-  const { data, error } = await query.select(CONTENT_FIELDS).single();
-  if (!error) return data;
-  if (!isMissingSchemaColumn(error)) throw error;
-
-  const { data: fallbackData, error: fallbackError } = await query.select(CONTENT_FALLBACK_FIELDS).single();
-  if (fallbackError) throw fallbackError;
+function normalizeAwarenessContent(item) {
   return {
-    ...fallbackData,
-    content_body: null,
-    reviewed_at: null,
-    reviewed_by: null,
+    id: item.id,
+    title: item.title,
+    summary: item.summary,
+    category: item.category || "General",
+    reading_time: item.reading_time || 5,
+    image_url: item.image_url || null,
+    content_body: item.content_body || null,
+    status: item.status || "pending",
+    is_featured: Boolean(item.is_featured),
+    created_at: item.created_at || null,
+    updated_at: item.updated_at || null,
+    reviewed_at: item.reviewed_at || null,
+    reviewed_by: item.reviewed_by || null,
   };
+}
+
+async function mutateContent(admin, contentId, payload, selectFields) {
+  const query = contentId
+    ? admin.from("awareness_content").update(payload).eq("id", contentId)
+    : admin.from("awareness_content").insert(payload);
+  const { data, error } = await query.select(selectFields).single();
+  if (error) throw error;
+  return normalizeAwarenessContent(data);
 }
 
 async function upsertContent(admin, actorId, body) {
@@ -333,24 +355,40 @@ async function upsertContent(admin, actorId, body) {
     content_body: contentBody,
   };
 
-  const query = contentId
-    ? admin.from("awareness_content").update(fullContent).eq("id", contentId)
-    : admin.from("awareness_content").insert(fullContent);
+  const attempts = [
+    { payload: fullContent, fields: CONTENT_FIELDS },
+    { payload: content, fields: CONTENT_LEGACY_FIELDS },
+    {
+      payload: {
+        title: content.title,
+        summary: content.summary,
+        category: content.category,
+        status: content.status,
+      },
+      fields: CONTENT_MINIMAL_FIELDS,
+    },
+    {
+      payload: {
+        title: content.title,
+        summary: content.summary,
+      },
+      fields: CONTENT_MINIMAL_FIELDS,
+    },
+  ];
 
-  let data;
-  try {
-    data = await selectContent(admin, query);
-  } catch (error) {
-    if (!isMissingSchemaColumn(error)) throw error;
-
-    const fallbackContent = { ...content };
-    delete fallbackContent.reviewed_at;
-    delete fallbackContent.reviewed_by;
-    const fallbackQuery = contentId
-      ? admin.from("awareness_content").update(fallbackContent).eq("id", contentId)
-      : admin.from("awareness_content").insert(fallbackContent);
-    data = await selectContent(admin, fallbackQuery);
+  let data = null;
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      data = await mutateContent(admin, contentId, attempt.payload, attempt.fields);
+      break;
+    } catch (error) {
+      lastError = error;
+      if (!isMissingSchemaColumn(error)) throw error;
+    }
   }
+
+  if (!data) throw lastError || new Error("Unable to save awareness content.");
 
   await writeAudit(admin, actorId, contentId ? "content.updated" : "content.created", "awareness_content", data.id, {
     title: content.title,
