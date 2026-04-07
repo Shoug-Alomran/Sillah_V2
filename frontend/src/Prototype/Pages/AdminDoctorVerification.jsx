@@ -84,7 +84,12 @@ export default function AdminDoctorVerification() {
             : profile
         )
       );
-      setFeedback({ type: "success", message: `Doctor profile marked ${status}.` });
+      const assignedCount = Number(result.assignedPatientsCount || 0);
+      const assignmentMessage =
+        status === "approved" && assignedCount > 0
+          ? ` ${assignedCount} unassigned patient${assignedCount === 1 ? " was" : "s were"} automatically assigned to this doctor.`
+          : "";
+      setFeedback({ type: "success", message: `Doctor profile marked ${status}.${assignmentMessage}` });
     } catch (saveError) {
       setFeedback({ type: "error", message: saveError?.message || "Unable to update doctor profile." });
     } finally {

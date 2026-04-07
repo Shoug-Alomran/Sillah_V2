@@ -129,6 +129,47 @@ async function listProfilesForAdmin(admin) {
   }));
 }
 
+async function autoAssignUnassignedPatients(admin, doctorId) {
+  const { data: patients, error: patientsError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("role", "patient")
+    .is("selected_doctor_id", null);
+  if (patientsError) throw patientsError;
+
+  const patientIds = (patients || []).map((patient) => patient.id).filter(Boolean);
+  if (patientIds.length === 0) return 0;
+
+  const { data: existingLinks, error: linksError } = await admin
+    .from("doctor_patient")
+    .select("patient_id")
+    .in("patient_id", patientIds);
+  if (linksError) throw linksError;
+
+  const linkedPatientIds = new Set((existingLinks || []).map((link) => link.patient_id));
+  const unassignedPatientIds = patientIds.filter((patientId) => !linkedPatientIds.has(patientId));
+  if (unassignedPatientIds.length === 0) return 0;
+
+  const { error: profileUpdateError } = await admin
+    .from("profiles")
+    .update({ selected_doctor_id: doctorId })
+    .in("id", unassignedPatientIds);
+  if (profileUpdateError) throw profileUpdateError;
+
+  const { error: relationError } = await admin
+    .from("doctor_patient")
+    .upsert(
+      unassignedPatientIds.map((patientId) => ({
+        doctor_id: doctorId,
+        patient_id: patientId,
+      })),
+      { onConflict: "doctor_id,patient_id", ignoreDuplicates: true }
+    );
+  if (relationError) throw relationError;
+
+  return unassignedPatientIds.length;
+}
+
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ["GET", "POST", "PATCH"])) return;
 
@@ -219,7 +260,10 @@ export default async function handler(req, res) {
         .single();
       if (error) throw error;
 
-      return res.status(200).json({ profile });
+      const assignedPatientsCount =
+        status === "approved" ? await autoAssignUnassignedPatients(admin, doctorId) : 0;
+
+      return res.status(200).json({ profile, assignedPatientsCount });
     }
 
     return res.status(405).json({ error: "Method Not Allowed" });
