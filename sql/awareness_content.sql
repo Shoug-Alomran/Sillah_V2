@@ -23,6 +23,9 @@ alter table public.awareness_content
 add column if not exists summary text;
 
 alter table public.awareness_content
+add column if not exists body text;
+
+alter table public.awareness_content
 add column if not exists category text not null default 'General';
 
 alter table public.awareness_content
@@ -51,6 +54,23 @@ add column if not exists created_at timestamptz not null default now();
 
 alter table public.awareness_content
 add column if not exists updated_at timestamptz not null default now();
+
+update public.awareness_content
+set
+  summary = coalesce(nullif(summary, ''), nullif(body, ''), title),
+  body = coalesce(nullif(body, ''), nullif(content_body, ''), nullif(summary, ''), title),
+  category = coalesce(nullif(category, ''), 'General'),
+  reading_time = coalesce(reading_time, 5),
+  status = coalesce(nullif(status, ''), 'pending'),
+  is_featured = coalesce(is_featured, false),
+  created_at = coalesce(created_at, now()),
+  updated_at = coalesce(updated_at, now());
+
+alter table public.awareness_content
+alter column summary set not null;
+
+alter table public.awareness_content
+alter column body set not null;
 
 create index if not exists awareness_content_status_idx
 on public.awareness_content (status);

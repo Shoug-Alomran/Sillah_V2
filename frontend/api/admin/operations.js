@@ -5,6 +5,8 @@ const PUBLIC_PROFILE_FIELDS = "id, email, full_name, phone_number, role, selecte
 const CLINIC_FIELDS = "id, name, location, contact_number, created_at";
 const CONTENT_FIELDS =
   "id, title, summary, category, reading_time, image_url, content_body, status, is_featured, created_at, updated_at, reviewed_at, reviewed_by";
+const CONTENT_BODY_FIELDS =
+  "id, title, body, summary, category, reading_time, image_url, status, is_featured, created_at, updated_at";
 const CONTENT_LEGACY_FIELDS = "id, title, summary, category, reading_time, status, is_featured, created_at, updated_at";
 const CONTENT_MINIMAL_FIELDS = "id, title, summary";
 const CONTENT_TITLE_ONLY_FIELDS = "id, title";
@@ -269,6 +271,20 @@ async function listContent(admin) {
     .order("updated_at", { ascending: false, nullsFirst: false });
   if (error) {
     if (isMissingSchemaColumn(error)) {
+      const { data: bodyData, error: bodyError } = await admin
+        .from("awareness_content")
+        .select(CONTENT_BODY_FIELDS)
+        .order("updated_at", { ascending: false, nullsFirst: false });
+
+      if (!bodyError) {
+        return (bodyData || []).map(normalizeAwarenessContent);
+      }
+
+      if (!isMissingSchemaColumn(bodyError)) {
+        if (isMissingTable(bodyError)) return [];
+        throw bodyError;
+      }
+
       const { data: legacyData, error: legacyError } = await admin
         .from("awareness_content")
         .select(CONTENT_LEGACY_FIELDS)
@@ -319,11 +335,11 @@ function normalizeAwarenessContent(item) {
   return {
     id: item.id,
     title: item.title,
-    summary: item.summary,
+    summary: item.summary || item.body || "",
     category: item.category || "General",
     reading_time: item.reading_time || 5,
     image_url: item.image_url || null,
-    content_body: item.content_body || null,
+    content_body: item.content_body || item.body || null,
     status: item.status || "pending",
     is_featured: Boolean(item.is_featured),
     created_at: item.created_at || null,
@@ -367,20 +383,30 @@ async function upsertContent(admin, actorId, body) {
 
   const fullContent = {
     ...content,
+    body: contentBody || content.summary,
     content_body: contentBody,
   };
 
   const attempts = [
+    { payload: fullContent, fields: CONTENT_BODY_FIELDS },
     { payload: fullContent, fields: CONTENT_FIELDS },
+    {
+      payload: {
+        ...content,
+        body: contentBody || content.summary,
+      },
+      fields: CONTENT_BODY_FIELDS,
+    },
     { payload: content, fields: CONTENT_LEGACY_FIELDS },
     {
       payload: {
         title: content.title,
+        body: contentBody || content.summary,
         summary: content.summary,
         category: content.category,
         status: content.status,
       },
-      fields: CONTENT_MINIMAL_FIELDS,
+      fields: CONTENT_BODY_FIELDS,
     },
     {
       payload: {
@@ -392,8 +418,9 @@ async function upsertContent(admin, actorId, body) {
     {
       payload: {
         title: content.title,
+        body: contentBody || content.summary,
       },
-      fields: CONTENT_TITLE_ONLY_FIELDS,
+      fields: CONTENT_BODY_FIELDS,
     },
   ];
 
@@ -405,7 +432,7 @@ async function upsertContent(admin, actorId, body) {
       break;
     } catch (error) {
       lastError = error;
-      if (!isMissingSchemaColumn(error)) throw error;
+      if (!isMissingSchemaColumn(error) && error?.code !== "23502") throw error;
     }
   }
 
