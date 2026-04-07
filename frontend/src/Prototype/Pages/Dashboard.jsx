@@ -3,9 +3,13 @@ import { Link } from "react-router-dom";
 import { Bell, Calendar, BookOpen, Users, Activity, Stethoscope, AlertTriangle, FileText, Shield } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import { useLanguage } from "../../contexts/LanguageContext";
+import OnboardingPrompt from "../../Components/OnboardingPrompt";
+import Tooltip from "../../Components/Tooltip";
 
 export default function Dashboard() {
-  const { currentUser, profile, isDoctor } = useAuth();
+  const { currentUser, profile, isDoctor, deleteAccount } = useAuth();
+  const { language, t } = useLanguage();
 
   const [stats, setStats] = useState({
     patientCount: 0,
@@ -17,6 +21,9 @@ export default function Dashboard() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -141,16 +148,50 @@ export default function Dashboard() {
     );
   }
 
+  async function handleDeleteAccount() {
+    if (deleteConfirmation.trim().toUpperCase() !== "DELETE") {
+      setDeleteError(t("dashboard.deleteMismatch"));
+      return;
+    }
+
+    try {
+      setDeleteError("");
+      setDeleting(true);
+      await deleteAccount(deleteConfirmation);
+      window.location.assign("/login");
+    } catch (error) {
+      console.error("Delete account error:", error);
+      setDeleteError(error?.message || t("dashboard.deleteErrorGeneric"));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
         <div className="dashboard-header">
-          <h1 className="dashboard-title">Welcome back, {profile?.full_name || "User"}</h1>
-          <p className="dashboard-subtitle">{isDoctor ? "Healthcare Provider Portal" : "Family Health Portal"}</p>
+          <h1 className="dashboard-title">
+            {t("dashboard.welcome", { name: profile?.full_name || "User" })}
+          </h1>
+          <p className="dashboard-subtitle">
+            {isDoctor ? t("dashboard.doctorSubtitle") : t("dashboard.patientSubtitle")}
+          </p>
           <p className="dashboard-welcome">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            {new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
           </p>
         </div>
+
+        <OnboardingPrompt
+          storageKey="sillah-dashboard-onboarding"
+          title={t("dashboard.firstTimeTitle")}
+          body={t("dashboard.firstTimeBody")}
+        />
 
         <div className="stats-grid">
           {isDoctor ? (
@@ -257,7 +298,7 @@ export default function Dashboard() {
         </div>
 
         <div className="quick-actions-card">
-          <h2 className="quick-actions-title">Quick Actions</h2>
+          <h2 className="quick-actions-title">{t("dashboard.quickActions")}</h2>
           <div className="quick-actions-grid">
             {isDoctor ? (
               <>
@@ -305,7 +346,7 @@ export default function Dashboard() {
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
             <Shield size={24} color="#14b8a6" />
             <h2 className="quick-actions-title" style={{ margin: 0 }}>
-              Patient Privacy & Access
+              {t("dashboard.privacy")}
             </h2>
           </div>
           <p>
@@ -313,6 +354,49 @@ export default function Dashboard() {
               ? `You have access to ${stats.patientCount} patients assigned to you. Patient data is protected.`
               : "Your health information is protected and secure. Only authorized providers can access it."}
           </p>
+        </div>
+
+        <div className="quick-actions-card danger-zone-card">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+            <AlertTriangle size={24} color="#dc2626" />
+            <h2 className="quick-actions-title" style={{ margin: 0 }}>
+              {t("dashboard.accountSafety")}
+            </h2>
+          </div>
+          <h3 className="danger-zone-title">{t("dashboard.deleteTitle")}</h3>
+          <p className="danger-zone-text">{t("dashboard.deleteBody")}</p>
+          <p className="danger-zone-warning">{t("dashboard.deleteWarning")}</p>
+
+          <div className="form-field" style={{ maxWidth: "22rem" }}>
+            <label htmlFor="delete-confirmation" className="form-label">
+              {t("dashboard.deleteConfirmLabel")}
+              <Tooltip content={t("dashboard.deleteConfirmHelp")} iconOnly>
+                <span className="label-help">?</span>
+              </Tooltip>
+            </label>
+            <input
+              id="delete-confirmation"
+              type="text"
+              value={deleteConfirmation}
+              onChange={(e) => {
+                setDeleteConfirmation(e.target.value);
+                setDeleteError("");
+              }}
+              className={`form-input ${deleteError ? "form-input--error" : ""}`}
+              placeholder={t("dashboard.deletePlaceholder")}
+              disabled={deleting}
+            />
+            {deleteError && <p className="inline-field-error">{deleteError}</p>}
+          </div>
+
+          <button
+            type="button"
+            className="danger-zone-button"
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+          >
+            {deleting ? t("dashboard.deleting") : t("dashboard.deleteButton")}
+          </button>
         </div>
       </div>
     </div>

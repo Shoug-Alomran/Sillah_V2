@@ -1,16 +1,51 @@
-# React + Vite
+# Sillah V2
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Phase 5 (CS340) - Production Setup
 
-Currently, two official plugins are available:
+Phase 5 now runs from the same Vercel frontend deployment using serverless API routes under `frontend/api`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Implemented endpoints:
+- `GET /api/health`
+- `GET /api/users`
+- `POST /api/users`
+- `PUT /api/users/:id`
+- `DELETE /api/users/:id`
+- `GET /api/family-members`
+- `POST /api/family-members`
+- `DELETE /api/family-members/:id`
+- `GET /api/queries/:qid`
 
-## React Compiler
+## Required Vercel Environment Variables (Frontend Project)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Set these in the Vercel project that deploys `frontend/`:
 
-## Expanding the ESLint configuration
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Optional:
+- `VITE_API_BASE`  
+  Leave empty to use same-origin `/api` routes (recommended for this setup).
+
+## Important Routing
+
+`frontend/vercel.json` is configured so:
+- existing files and `/api/*` functions are served directly
+- everything else rewrites to `/index.html` for SPA routing
+
+## Deploy Checklist
+
+1. Push latest code.
+2. In Vercel, confirm Root Directory is `frontend`.
+3. Add DB env vars above in Vercel Project Settings.
+4. Redeploy.
+5. Verify:
+   - `https://<your-domain>/api/health` returns JSON
+   - `https://<your-domain>/phase5-demo` loads Users/Family Members/Queries
+
+## Notes
+
+- `server/` is still available for local Express development.
+- Phase 5 in production no longer requires a separate backend URL if using `frontend/api/*`.

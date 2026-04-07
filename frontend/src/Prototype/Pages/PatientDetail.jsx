@@ -91,7 +91,7 @@ export default function PatientDetail() {
 
         const { data: appts, error: apptErr } = await supabase
           .from("appointments")
-          .select("id, clinic_name, appointment_date, appointment_time, reason, status, created_at")
+          .select("*")
           .eq("patient_id", patientId)
           .order("appointment_date", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false });

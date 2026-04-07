@@ -1,48 +1,62 @@
-// frontend/src/Prototype/Pages/Login.jsx
 import React, { useState } from "react";
-import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { Heart, Mail, Lock, AlertCircle } from "lucide-react";
+import { Mail, Lock, AlertCircle } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
+import { useLanguage } from "../../contexts/LanguageContext";
+import LanguageToggle from "../../Components/LanguageToggle";
+import OnboardingPrompt from "../../Components/OnboardingPrompt";
+import Tooltip from "../../Components/Tooltip";
+import sillahLogo from "../../assets/sillah-logo.png";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  function validate(nextEmail = email, nextPassword = password) {
+    const errors = {};
+    const trimmedEmail = nextEmail.trim();
+
+    if (!trimmedEmail) errors.email = t("login.validationEmailRequired");
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.email = t("login.validationEmailInvalid");
+    }
+
+    if (!nextPassword) errors.password = t("login.validationPasswordRequired");
+    return errors;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
-
     const cleanEmail = email.trim().toLowerCase();
+    const nextErrors = validate(cleanEmail, password);
 
-    if (!cleanEmail || !password) {
-      setError("Please enter your email and password.");
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError(t("login.errorMissing"));
       return;
     }
 
     try {
       setError("");
       setLoading(true);
-
       await login(cleanEmail, password);
-
-      // If login succeeds, session exists -> go to dashboard
       navigate("/dashboard");
     } catch (err) {
-      console.error("Login error:", err);
-
       const msg = String(err?.message || "");
 
-      // Common Supabase cases (helpful UX)
       if (msg.toLowerCase().includes("email not confirmed")) {
-        setError("Your email isn’t confirmed yet. Check your inbox and confirm, then try again.");
+        setError(t("login.errorEmailNotConfirmed"));
       } else if (msg.toLowerCase().includes("invalid login credentials")) {
-        setError("Invalid email or password.");
+        setError(t("login.errorInvalidCredentials"));
       } else {
-        setError(msg || "Failed to login. Please try again.");
+        setError(msg || t("login.errorGeneric"));
       }
     } finally {
       setLoading(false);
@@ -51,15 +65,27 @@ export default function Login() {
 
   return (
     <div className="auth-page">
-      <div className="auth-container">
+      <div className="auth-container auth-container--login">
         <div className="auth-card">
+          <div className="auth-toolbar">
+            <LanguageToggle />
+          </div>
+
           <div className="auth-header">
             <div className="brand-icon-large">
-              <Heart className="brand-heart-large" />
+              <img className="brand-logo-large" src={sillahLogo} alt="Sillah logo" />
             </div>
-            <h1 className="auth-title">Welcome to Sillah (صلة)</h1>
-            <p className="auth-subtitle">Login to your account</p>
+            <h1 className="auth-title">{t("login.title")}</h1>
+            <p className="auth-subtitle">{t("login.subtitle")}</p>
           </div>
+
+          <OnboardingPrompt
+            storageKey="sillah-login-onboarding"
+            title={t("login.onboardingTitle")}
+            body={t("login.onboardingBody")}
+            actionLabel={t("login.onboardingAction")}
+            onAction={() => navigate("/signup")}
+          />
 
           {error && (
             <div className="auth-error" role="alert" aria-live="polite">
@@ -72,50 +98,72 @@ export default function Login() {
             <div className="form-field">
               <label htmlFor="email" className="form-label">
                 <Mail className="form-label-icon" />
-                Email Address
+                {t("login.email")}
+                <Tooltip content={t("login.emailHelp")} iconOnly>
+                  <span className="label-help">?</span>
+                </Tooltip>
               </label>
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="form-input"
-                placeholder="your.email@example.com"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setEmail(nextValue);
+                  setFieldErrors(validate(nextValue, password));
+                }}
+                className={`form-input ${fieldErrors.email ? "form-input--error" : ""}`}
+                placeholder={t("login.emailPlaceholder")}
                 required
                 autoComplete="email"
                 inputMode="email"
                 disabled={loading}
               />
+              {fieldErrors.email && <p className="inline-field-error">{fieldErrors.email}</p>}
             </div>
 
             <div className="form-field">
               <label htmlFor="password" className="form-label">
                 <Lock className="form-label-icon" />
-                Password
+                {t("login.password")}
+                <Tooltip content={t("login.passwordHelp")} iconOnly>
+                  <span className="label-help">?</span>
+                </Tooltip>
               </label>
               <input
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="form-input"
-                placeholder="Enter your password"
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setPassword(nextValue);
+                  setFieldErrors(validate(email, nextValue));
+                }}
+                className={`form-input ${fieldErrors.password ? "form-input--error" : ""}`}
+                placeholder={t("login.passwordPlaceholder")}
                 required
                 autoComplete="current-password"
                 disabled={loading}
               />
+              {fieldErrors.password && <p className="inline-field-error">{fieldErrors.password}</p>}
             </div>
 
             <button type="submit" disabled={loading} className="auth-submit-btn">
-              {loading ? "Logging in..." : "Login"}
+              {loading ? t("login.submitting") : t("login.submit")}
             </button>
           </form>
 
           <div className="auth-footer">
             <p>
-              Don&apos;t have an account?{" "}
+              {t("login.noAccount")}{" "}
               <Link to="/signup" className="auth-link">
-                Sign up
+                {t("login.signup")}
+              </Link>
+            </p>
+            <p style={{ marginTop: "0.5rem" }}>
+              {t("login.phase5Label")}{" "}
+              <Link to="/phase5-demo" className="auth-link">
+                {t("login.phase5")}
               </Link>
             </p>
           </div>

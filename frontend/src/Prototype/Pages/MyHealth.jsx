@@ -3,8 +3,21 @@ import { Heart, Plus, Calendar, Edit, Trash2, AlertTriangle } from "lucide-react
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
+const CONDITION_OPTIONS = [
+  "Sickle Cell Disease",
+  "Sickle Cell Trait",
+  "Thalassemia",
+  "G6PD Deficiency",
+  "Diabetes",
+  "Hypertension",
+  "Heart Disease",
+  "Asthma",
+  "Other"
+];
+
 const EMPTY_FORM = {
-  condition_name: "",
+  condition_selection: "",
+  custom_condition: "",
   diagnosis_date: "",
   notes: ""
 };
@@ -122,8 +135,12 @@ export default function MyHealth() {
 
   const openEdit = (record) => {
     setEditingRecord(record);
+    const conditionName = String(record.condition_name || "").trim();
+    const isListed = CONDITION_OPTIONS.includes(conditionName);
+
     setFormData({
-      condition_name: record.condition_name || "",
+      condition_selection: isListed ? conditionName : conditionName ? "Other" : "",
+      custom_condition: isListed ? "" : conditionName,
       diagnosis_date: record.diagnosis_date || "",
       notes: record.notes || ""
     });
@@ -138,8 +155,17 @@ export default function MyHealth() {
   const handleSave = async (e) => {
     e.preventDefault();
 
-    if (!selfMember?.id || !formData.condition_name.trim()) {
+    const conditionName =
+      formData.condition_selection === "Other"
+        ? formData.custom_condition.trim()
+        : formData.condition_selection.trim();
+
+    if (!selfMember?.id || !conditionName) {
       alert("Condition/diagnosis is required.");
+      return;
+    }
+    if (formData.condition_selection === "Other" && !formData.custom_condition.trim()) {
+      alert("Please enter the condition name for Other.");
       return;
     }
     if (formData.diagnosis_date && formData.diagnosis_date > todayISO) {
@@ -152,7 +178,7 @@ export default function MyHealth() {
 
       const payload = {
         family_member_id: selfMember.id,
-        condition_name: formData.condition_name.trim(),
+        condition_name: conditionName,
         diagnosis_date: formData.diagnosis_date || null,
         notes: formData.notes?.trim() || null
       };
@@ -327,15 +353,36 @@ export default function MyHealth() {
               <div className="form-content">
                 <div className="form-field">
                   <label htmlFor="condition_name" className="form-label">Condition/Diagnosis *</label>
-                  <input
+                  <select
                     id="condition_name"
-                    type="text"
-                    value={formData.condition_name}
-                    onChange={(e) => setFormData((p) => ({ ...p, condition_name: e.target.value }))}
+                    value={formData.condition_selection}
+                    onChange={(e) => setFormData((p) => ({ ...p, condition_selection: e.target.value }))}
                     className="form-input"
                     required
-                  />
+                  >
+                    <option value="">Select condition</option>
+                    {CONDITION_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                {formData.condition_selection === "Other" && (
+                  <div className="form-field">
+                    <label htmlFor="custom_condition" className="form-label">Other Condition Name</label>
+                    <input
+                      id="custom_condition"
+                      type="text"
+                      value={formData.custom_condition}
+                      onChange={(e) => setFormData((p) => ({ ...p, custom_condition: e.target.value }))}
+                      className="form-input"
+                      placeholder="Enter uncommon condition name"
+                      required
+                    />
+                  </div>
+                )}
 
                 <div className="form-field">
                   <label htmlFor="diagnosis_date" className="form-label">Diagnosis Date</label>

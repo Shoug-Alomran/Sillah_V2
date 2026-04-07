@@ -1,5 +1,4 @@
-// frontend/src/Components/Layout.jsx
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Heart,
@@ -13,16 +12,52 @@ import {
   LogOut,
   Menu,
   X,
-  Stethoscope,
   Pill,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import LanguageToggle from "./LanguageToggle";
+import Tooltip from "./Tooltip";
+import sillahLogo from "../assets/sillah-logo.png";
 
 export default function Layout({ children, currentPageName }) {
-  // ✅ AuthContext provides: currentUser, profile, isDoctor, isPatient
-  const { logout, currentUser, profile, isDoctor, isPatient } = useAuth();
+  const { logout, isDoctor, isPatient } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const navLinks = useMemo(() => {
+    const base = [
+      { to: "/dashboard", key: "Dashboard", icon: LayoutDashboard, label: t("layout.dashboard") },
+    ];
+
+    if (isPatient) {
+      return [
+        ...base,
+        { to: "/my-health", key: "MyHealth", icon: Heart, label: t("layout.myHealth") },
+        { to: "/alerts", key: "Alerts", icon: Bell, label: t("layout.alerts") },
+        { to: "/medications", key: "Medications", icon: Pill, label: t("layout.medications") },
+        { to: "/appointments", key: "Appointments", icon: Calendar, label: t("layout.appointments") },
+        { to: "/clinics", key: "Clinics", icon: MapPin, label: t("layout.clinics") },
+        { to: "/awareness-hub", key: "AwarenessHub", icon: BookOpen, label: t("layout.awarenessHub") },
+        { to: "/family-tree", key: "FamilyTree", icon: Users, label: t("layout.familyTree") },
+        { to: "/risk-assessment", key: "RiskAssessment", icon: Activity, label: t("layout.riskAssessment") },
+      ];
+    }
+
+    if (isDoctor) {
+      return [
+        ...base,
+        { to: "/patients", key: "Patients", icon: Users, label: t("layout.patients") },
+        { to: "/medications", key: "Medications", icon: Pill, label: t("layout.medications") },
+        { to: "/appointments", key: "Appointments", icon: Calendar, label: t("layout.appointments") },
+        { to: "/clinics", key: "Clinics", icon: MapPin, label: t("layout.clinics") },
+        { to: "/awareness-hub", key: "AwarenessHub", icon: BookOpen, label: t("layout.awarenessHub") },
+      ];
+    }
+
+    return base;
+  }, [isDoctor, isPatient, t]);
 
   const handleLogout = async () => {
     try {
@@ -33,365 +68,73 @@ export default function Layout({ children, currentPageName }) {
     }
   };
 
+  const renderLink = (item, mobile = false) => {
+    const Icon = item.icon;
+
+    return (
+      <Tooltip key={`${mobile ? "mobile" : "desktop"}-${item.key}`} content={item.label}>
+        <Link
+          to={item.to}
+          className={`nav-link ${mobile ? "nav-link--mobile" : ""} ${
+            currentPageName === item.key ? "nav-link--active" : ""
+          }`}
+          onClick={mobile ? () => setMobileMenuOpen(false) : undefined}
+        >
+          <Icon className="nav-link-icon" />
+          {item.label}
+        </Link>
+      </Tooltip>
+    );
+  };
+
   return (
     <div className="app-shell">
-      {/* Top Navigation */}
       <nav className="top-nav">
         <div className="top-nav-inner">
-          {/* Brand */}
           <Link to="/dashboard" className="brand">
             <div className="brand-icon">
-              <Heart className="brand-heart" />
+              <img className="brand-logo" src={sillahLogo} alt="Sillah logo" />
             </div>
             <div className="brand-text">
-              <div className="brand-title">Sillah</div>
-              <div className="brand-subtitle">صلة - Family Health</div>
+              <div className="brand-title">{t("common.appName")}</div>
+              <div className="brand-subtitle">{t("common.appSubtitle")}</div>
             </div>
           </Link>
 
-          {/* Desktop Navigation */}
           <div className="nav-links nav-links--desktop">
-            <Link
-              to="/dashboard"
-              className={`nav-link ${
-                currentPageName === "Dashboard" ? "nav-link--active" : ""
-              }`}
-            >
-              <LayoutDashboard className="nav-link-icon" />
-              Dashboard
-            </Link>
-
-            {/* Patient-only links */}
-            {isPatient && (
-              <>
-                <Link
-                  to="/my-health"
-                  className={`nav-link ${
-                    currentPageName === "MyHealth" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Heart className="nav-link-icon" />
-                  My Health
-                </Link>
-
-                <Link
-                  to="/alerts"
-                  className={`nav-link ${
-                    currentPageName === "Alerts" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Bell className="nav-link-icon" />
-                  Alerts
-                </Link>
-
-                <Link
-                  to="/medications"
-                  className={`nav-link ${
-                    currentPageName === "Medications" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Pill className="nav-link-icon" />
-                  Medications
-                </Link>
-
-                <Link
-                  to="/appointments"
-                  className={`nav-link ${
-                    currentPageName === "Appointments" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Calendar className="nav-link-icon" />
-                  Appointments
-                </Link>
-
-                <Link
-                  to="/clinics"
-                  className={`nav-link ${
-                    currentPageName === "Clinics" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <MapPin className="nav-link-icon" />
-                  Clinics
-                </Link>
-
-                <Link
-                  to="/awareness-hub"
-                  className={`nav-link ${
-                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <BookOpen className="nav-link-icon" />
-                  Awareness Hub
-                </Link>
-
-                <Link
-                  to="/family-tree"
-                  className={`nav-link ${
-                    currentPageName === "FamilyTree" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Users className="nav-link-icon" />
-                  Family Tree
-                </Link>
-
-                <Link
-                  to="/risk-assessment"
-                  className={`nav-link ${
-                    currentPageName === "RiskAssessment" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Activity className="nav-link-icon" />
-                  Risk Assessment
-                </Link>
-              </>
-            )}
-
-            {/* Doctor-only links */}
-            {isDoctor && (
-              <>
-                <Link
-                  to="/patients"
-                  className={`nav-link ${
-                    currentPageName === "Patients" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Users className="nav-link-icon" />
-                  My Patients
-                </Link>
-
-                <Link
-                  to="/medications"
-                  className={`nav-link ${
-                    currentPageName === "Medications" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Pill className="nav-link-icon" />
-                  Medications
-                </Link>
-
-                <Link
-                  to="/appointments"
-                  className={`nav-link ${
-                    currentPageName === "Appointments" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <Calendar className="nav-link-icon" />
-                  Appointments
-                </Link>
-
-                <Link
-                  to="/clinics"
-                  className={`nav-link ${
-                    currentPageName === "Clinics" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <MapPin className="nav-link-icon" />
-                  Clinics
-                </Link>
-
-                <Link
-                  to="/awareness-hub"
-                  className={`nav-link ${
-                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                  }`}
-                >
-                  <BookOpen className="nav-link-icon" />
-                  Awareness Hub
-                </Link>
-              </>
-            )}
-
-            <button className="nav-link nav-link--ghost" onClick={handleLogout}>
-              <LogOut className="nav-link-icon" />
-              Logout
-            </button>
+            {navLinks.map((item) => renderLink(item))}
+            <LanguageToggle />
+            <Tooltip content={t("layout.logout")}>
+              <button className="nav-link nav-link--ghost" onClick={handleLogout}>
+                <LogOut className="nav-link-icon" />
+                {t("layout.logout")}
+              </button>
+            </Tooltip>
           </div>
 
-          {/* Mobile Menu Toggle */}
-          <button
-            className="menu-toggle"
-            onClick={() => setMobileMenuOpen((v) => !v)}
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? (
-              <X className="menu-icon" />
-            ) : (
-              <Menu className="menu-icon" />
-            )}
-          </button>
+          <div className="top-nav-actions">
+            <LanguageToggle />
+            <Tooltip content={t("layout.menu")}>
+              <button
+                className="menu-toggle"
+                onClick={() => setMobileMenuOpen((value) => !value)}
+                aria-label={t("layout.menu")}
+              >
+                {mobileMenuOpen ? <X className="menu-icon" /> : <Menu className="menu-icon" />}
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
-        {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="nav-links nav-links--mobile">
-            <Link
-              to="/dashboard"
-              className={`nav-link nav-link--mobile ${
-                currentPageName === "Dashboard" ? "nav-link--active" : ""
-              }`}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <LayoutDashboard className="nav-link-icon" />
-              Dashboard
-            </Link>
-
-            {isPatient && (
-              <>
-                <Link
-                  to="/my-health"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "MyHealth" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Heart className="nav-link-icon" />
-                  My Health
-                </Link>
-
-                <Link
-                  to="/alerts"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Alerts" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Bell className="nav-link-icon" />
-                  Alerts
-                </Link>
-
-                <Link
-                  to="/medications"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Medications" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Pill className="nav-link-icon" />
-                  Medications
-                </Link>
-
-                <Link
-                  to="/appointments"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Appointments" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Calendar className="nav-link-icon" />
-                  Appointments
-                </Link>
-
-                <Link
-                  to="/clinics"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Clinics" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <MapPin className="nav-link-icon" />
-                  Clinics
-                </Link>
-
-                <Link
-                  to="/awareness-hub"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <BookOpen className="nav-link-icon" />
-                  Awareness Hub
-                </Link>
-
-                <Link
-                  to="/family-tree"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "FamilyTree" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Users className="nav-link-icon" />
-                  Family Tree
-                </Link>
-
-                <Link
-                  to="/risk-assessment"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "RiskAssessment" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Activity className="nav-link-icon" />
-                  Risk Assessment
-                </Link>
-              </>
-            )}
-
-            {isDoctor && (
-              <>
-                <Link
-                  to="/patients"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Patients" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Users className="nav-link-icon" />
-                  My Patients
-                </Link>
-
-                <Link
-                  to="/medications"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Medications" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Pill className="nav-link-icon" />
-                  Medications
-                </Link>
-
-                <Link
-                  to="/appointments"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Appointments" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Calendar className="nav-link-icon" />
-                  Appointments
-                </Link>
-
-                <Link
-                  to="/clinics"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "Clinics" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <MapPin className="nav-link-icon" />
-                  Clinics
-                </Link>
-
-                <Link
-                  to="/awareness-hub"
-                  className={`nav-link nav-link--mobile ${
-                    currentPageName === "AwarenessHub" ? "nav-link--active" : ""
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <BookOpen className="nav-link-icon" />
-                  Awareness Hub
-                </Link>
-              </>
-            )}
-
+            {navLinks.map((item) => renderLink(item, true))}
             <button
               className="nav-link nav-link--mobile nav-link--ghost"
               onClick={handleLogout}
             >
               <LogOut className="nav-link-icon" />
-              Logout
+              {t("layout.logout")}
             </button>
           </div>
         )}
@@ -403,8 +146,8 @@ export default function Layout({ children, currentPageName }) {
         <div className="app-footer-inner">
           <div className="footer-col">
             <h3 className="footer-title">
-              <Heart className="footer-heart" />
-              Sillah (صلة)
+              <img className="footer-logo" src={sillahLogo} alt="Sillah logo" />
+              {t("common.appName")}
             </h3>
             <p className="footer-text">
               Empowering families with hereditary health insights and preventive
@@ -418,51 +161,27 @@ export default function Layout({ children, currentPageName }) {
           <div className="footer-col">
             <h4 className="footer-subtitle">Quick Links</h4>
             <div className="footer-links">
-              <Link to="/dashboard" className="footer-link">
-                Dashboard
-              </Link>
-              {isPatient && (
-                <>
-                  <Link to="/family-tree" className="footer-link">
-                    Family Tree
-                  </Link>
-                  <Link to="/risk-assessment" className="footer-link">
-                    Risk Assessment
-                  </Link>
-                </>
-              )}
-              {isDoctor && (
-                <Link to="/patients" className="footer-link">
-                  My Patients
+              {navLinks.slice(0, 4).map((item) => (
+                <Link key={item.key} to={item.to} className="footer-link">
+                  {item.label}
                 </Link>
-              )}
-              <Link to="/awareness-hub" className="footer-link">
-                Awareness Hub
-              </Link>
+              ))}
             </div>
           </div>
 
           <div className="footer-col">
             <h4 className="footer-subtitle">Support</h4>
             <div className="footer-links">
-              <a href="#" className="footer-link">
-                Help Center
-              </a>
-              <a href="#" className="footer-link">
-                Privacy Policy
-              </a>
-              <a href="#" className="footer-link">
-                Terms of Service
-              </a>
-              <a href="#" className="footer-link">
-                Contact Us
-              </a>
+              <a href="#" className="footer-link">Help Center</a>
+              <a href="#" className="footer-link">Privacy Policy</a>
+              <a href="#" className="footer-link">Terms of Service</a>
+              <a href="#" className="footer-link">Contact Us</a>
             </div>
           </div>
         </div>
 
         <div className="app-footer-bottom">
-          <p>&copy; 2025 Sillah. All rights reserved.</p>
+          <p>&copy; 2026 Sillah. All rights reserved.</p>
         </div>
       </footer>
     </div>

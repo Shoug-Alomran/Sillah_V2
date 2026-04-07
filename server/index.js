@@ -11,8 +11,9 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-  // add your Vercel domain after deploy:
-  // "https://YOUR-PROJECT.vercel.app",
+  ...(process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+    : []),
 ];
 
 app.use(

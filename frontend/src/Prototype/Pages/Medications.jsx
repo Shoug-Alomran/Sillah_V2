@@ -14,7 +14,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function Medications() {
-  const { currentUser, isDoctor, isPatient } = useAuth();
+  const { currentUser, profile, isDoctor, isPatient } = useAuth();
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const viewMode = useMemo(() => (isDoctor ? "doctor" : "patient"), [isDoctor]);
 
@@ -51,7 +52,7 @@ export default function Medications() {
   useEffect(() => {
     fetchMedications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, viewMode]);
+  }, [currentUser?.id, viewMode, profile?.patient_code]);
 
   async function fetchMedications() {
     if (!currentUser?.id) {
@@ -64,20 +65,12 @@ export default function Medications() {
       setLoading(true);
       setPageError(null);
 
-      let q = supabase.from("medications").select("*");
-
-      if (viewMode === "patient") {
-        q = q.eq("patient_id", currentUser.id);
-      } else {
-        q = q.eq("doctor_id", currentUser.id);
-      }
-
-      // Newest first (fallback to start_date, then created_at)
-      q = q
+      const { data, error } = await supabase
+        .from("medications")
+        .select("*")
         .order("start_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
 
-      const { data, error } = await q;
       if (error) {
         if (error.code === "PGRST205") {
           setMedicationsAvailable(false);
@@ -88,8 +81,37 @@ export default function Medications() {
         throw error;
       }
 
+      let rows = data || [];
+
+      // Keep UI role-specific even if RLS is relaxed.
+      if (viewMode === "patient") {
+        rows = rows.filter((row) => {
+          if (row.patient_id) return row.patient_id === currentUser.id;
+          if (row.user_id) return row.user_id === currentUser.id;
+          if (row.prescribed_for_patient) {
+            return (
+              row.prescribed_for_patient === currentUser.id ||
+              row.prescribed_for_patient === (profile?.patient_code || "")
+            );
+          }
+          return true;
+        });
+      } else {
+        rows = rows.filter((row) => {
+          if (row.doctor_id) return row.doctor_id === currentUser.id;
+          if (row.prescribed_by) return row.prescribed_by === currentUser.id;
+          return true;
+        });
+      }
+
+      rows.sort((a, b) => {
+        const aDate = new Date(a?.start_date || a?.created_at || 0).getTime();
+        const bDate = new Date(b?.start_date || b?.created_at || 0).getTime();
+        return bDate - aDate;
+      });
+
       setMedicationsAvailable(true);
-      setMedications(data || []);
+      setMedications(rows);
     } catch (err) {
       console.error("Error fetching medications:", err);
       setPageError(err?.message || "Unable to load medications");
@@ -212,6 +234,18 @@ export default function Medications() {
     // Basic validation
     if (!formData.medication_name.trim() || !formData.dosage.trim() || !formData.start_date) {
       setFormError("Please fill Medication Name, Dosage, and Start Date.");
+      return;
+    }
+    if (formData.start_date > todayISO) {
+      setFormError("Start date cannot be in the future.");
+      return;
+    }
+    if (formData.end_date && formData.end_date < formData.start_date) {
+      setFormError("End date cannot be before start date.");
+      return;
+    }
+    if (formData.refill_date && formData.refill_date < formData.start_date) {
+      setFormError("Refill reminder date cannot be before start date.");
       return;
     }
 
@@ -692,6 +726,7 @@ export default function Medications() {
                       value={formData.start_date}
                       onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
                       className="form-input"
+                      max={todayISO}
                       required
                     />
                   </div>
@@ -706,6 +741,7 @@ export default function Medications() {
                       value={formData.end_date}
                       onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                       className="form-input"
+                      min={formData.start_date || undefined}
                     />
                   </div>
                 </div>
@@ -720,6 +756,7 @@ export default function Medications() {
                     value={formData.refill_date}
                     onChange={(e) => setFormData({ ...formData, refill_date: e.target.value })}
                     className="form-input"
+                    min={formData.start_date || undefined}
                   />
                 </div>
 

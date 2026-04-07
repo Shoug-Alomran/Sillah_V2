@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Users, Plus, Search, Edit, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import { useLanguage } from "../../contexts/LanguageContext";
+import OnboardingPrompt from "../../Components/OnboardingPrompt";
+import Tooltip from "../../Components/Tooltip";
 
 const EMPTY_FORM = {
   full_name: "",
@@ -44,6 +47,7 @@ const CONDITION_OPTIONS = [
 
 export default function FamilyTree() {
   const { currentUser, isPatient } = useAuth();
+  const { language, t } = useLanguage();
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -55,6 +59,7 @@ export default function FamilyTree() {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [latestConditionsByMember, setLatestConditionsByMember] = useState({});
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +159,7 @@ export default function FamilyTree() {
   function openCreateModal() {
     setEditingMember(null);
     setFormData(EMPTY_FORM);
+    setFormErrors({});
     setShowModal(true);
   }
 
@@ -171,6 +177,7 @@ export default function FamilyTree() {
       diagnosis_date: latestConditionsByMember[member.id]?.diagnosis_date || "",
       condition_notes: latestConditionsByMember[member.id]?.notes || ""
     });
+    setFormErrors({});
     setShowModal(true);
   }
 
@@ -178,6 +185,7 @@ export default function FamilyTree() {
     setShowModal(false);
     setEditingMember(null);
     setFormData(EMPTY_FORM);
+    setFormErrors({});
   }
 
   function isFutureDate(dateStr) {
@@ -185,16 +193,21 @@ export default function FamilyTree() {
     return dateStr > todayISO;
   }
 
+  function validateMemberForm(values = formData) {
+    const errors = {};
+    if (!values.full_name.trim()) errors.full_name = t("family.validationName");
+    if (!values.relationship.trim()) errors.relationship = t("family.validationRelationship");
+    if (isFutureDate(values.date_of_birth)) errors.date_of_birth = t("family.validationDateFuture");
+    return errors;
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     if (!currentUser?.id || !isPatient) return;
 
-    if (!formData.full_name.trim() || !formData.relationship.trim()) {
-      alert("Full name and relationship are required.");
-      return;
-    }
-    if (isFutureDate(formData.date_of_birth)) {
-      alert("Date of birth cannot be in the future.");
+    const nextErrors = validateMemberForm();
+    setFormErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
       return;
     }
     if (isFutureDate(formData.diagnosis_date)) {
@@ -334,14 +347,18 @@ export default function FamilyTree() {
     if (!dateString) return "Not provided";
     const date = new Date(dateString);
     if (Number.isNaN(date.getTime())) return "Not provided";
-    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    return date.toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   }
 
   if (loading) {
     return (
       <div className="family-tree-page">
         <div className="family-tree-container">
-          <h1 className="family-tree-title">Family Health Tree</h1>
+          <h1 className="family-tree-title">{t("family.title")}</h1>
           <p>Loading family members...</p>
         </div>
       </div>
@@ -356,7 +373,7 @@ export default function FamilyTree() {
             <AlertTriangle className="empty-icon" style={{ color: "#ef4444" }} />
             <p className="empty-title">{error}</p>
             <button className="empty-action-btn" onClick={() => window.location.reload()}>
-              Try Again
+              {t("common.tryAgain")}
             </button>
           </div>
         </div>
@@ -369,20 +386,28 @@ export default function FamilyTree() {
       <div className="family-tree-container">
         <header className="family-tree-header">
           <div>
-            <h1 className="family-tree-title">Family Health Tree</h1>
-            <p className="family-tree-subtitle">Manage your family members</p>
+            <h1 className="family-tree-title">{t("family.title")}</h1>
+            <p className="family-tree-subtitle">{t("family.subtitle")}</p>
           </div>
           <button onClick={openCreateModal} className="add-member-btn" type="button">
             <Plus className="btn-icon" />
-            Add Family Member
+            {t("family.add")}
           </button>
         </header>
+
+        <OnboardingPrompt
+          storageKey="sillah-family-onboarding"
+          title={t("family.firstTimeTitle")}
+          body={t("family.firstTimeBody")}
+          actionLabel={t("family.firstTimeAction")}
+          onAction={openCreateModal}
+        />
 
         <div className="search-bar">
           <Search className="search-icon" />
           <input
             type="text"
-            placeholder="Search by name, relationship, or gender..."
+            placeholder={t("family.searchPlaceholder")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
@@ -392,18 +417,18 @@ export default function FamilyTree() {
         {!hasVisibleMembers ? (
           <div className="empty-state">
             <Users className="empty-icon" />
-            <p className="empty-title">No Family Members Added Yet</p>
-            <p className="empty-text">Start by adding a family member.</p>
+            <p className="empty-title">{t("family.emptyTitle")}</p>
+            <p className="empty-text">{t("family.emptyText")}</p>
             <button onClick={openCreateModal} className="empty-action-btn" type="button">
               <Plus className="empty-action-icon" />
-              Add Your First Family Member
+              {t("family.addFirst")}
             </button>
           </div>
         ) : filteredMembers.length === 0 ? (
           <div className="empty-state">
             <Search className="empty-icon" />
-            <p className="empty-title">No matching family members</p>
-            <p className="empty-text">Try a different search term.</p>
+            <p className="empty-title">{t("family.noMatches")}</p>
+            <p className="empty-text">{t("family.noMatchesBody")}</p>
           </div>
         ) : (
           <div className="family-members-grid">
@@ -411,14 +436,14 @@ export default function FamilyTree() {
               <div key={member.id} className="family-member-card-new">
                 <div className="family-card-header-new">
                   <div className="family-card-header-left">
-                    <h3 className="family-member-name-new">{member.full_name || "Unnamed"}</h3>
-                    <p className="family-member-relationship-new">{member.relationship || "Unknown relation"}</p>
+                    <h3 className="family-member-name-new">{member.full_name || t("family.unnamed")}</h3>
+                    <p className="family-member-relationship-new">{member.relationship || t("family.unknownRelation")}</p>
                   </div>
                   <div className="family-card-header-right">
-                    <button onClick={() => openEditModal(member)} className="family-edit-btn-new" title="Edit" type="button">
+                    <button onClick={() => openEditModal(member)} className="family-edit-btn-new" title={t("family.editTooltip")} type="button">
                       <Edit size={18} />
                     </button>
-                    <button onClick={() => handleDelete(member.id)} className="family-delete-btn-new" title="Delete" type="button">
+                    <button onClick={() => handleDelete(member.id)} className="family-delete-btn-new" title={t("family.deleteTooltip")} type="button">
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -426,19 +451,19 @@ export default function FamilyTree() {
 
                 <div className="family-card-content-new">
                   <p className="family-member-age-new">
-                    <strong>Gender:</strong> {member.gender || "Not specified"}
+                    <strong>{t("family.genderLabel")}</strong> {member.gender || "Not specified"}
                   </p>
                   <p className="family-member-age-new">
-                    <strong>Date of Birth:</strong> {formatDate(member.date_of_birth)}
+                    <strong>{t("family.dobLabel")}</strong> {formatDate(member.date_of_birth)}
                   </p>
                   {latestConditionsByMember[member.id]?.condition_name && (
                     <>
                       <p className="family-member-age-new">
-                        <strong>Latest Condition:</strong> {latestConditionsByMember[member.id].condition_name}
+                        <strong>{t("family.latestCondition")}</strong> {latestConditionsByMember[member.id].condition_name}
                       </p>
                       {latestConditionsByMember[member.id].diagnosis_date && (
                         <p className="family-member-age-new">
-                          <strong>Diagnosis Date:</strong> {formatDate(latestConditionsByMember[member.id].diagnosis_date)}
+                          <strong>{t("family.diagnosisDate")}</strong> {formatDate(latestConditionsByMember[member.id].diagnosis_date)}
                         </p>
                       )}
                     </>
@@ -454,67 +479,92 @@ export default function FamilyTree() {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">{editingMember ? "Edit Family Member" : "Add Family Member"}</h2>
+              <h2 className="modal-title">{editingMember ? t("family.edit") : t("family.add")}</h2>
               <button onClick={closeModal} className="modal-close" type="button">×</button>
             </div>
 
             <form onSubmit={handleSave} className="modal-body">
               <div className="form-content">
                 <div className="form-field">
-                  <label htmlFor="full_name" className="form-label">Full Name *</label>
+                  <label htmlFor="full_name" className="form-label">{t("family.fullName")} *</label>
                   <input
                     id="full_name"
                     type="text"
                     value={formData.full_name}
-                    onChange={(e) => setFormData((p) => ({ ...p, full_name: e.target.value }))}
-                    className="form-input"
+                    onChange={(e) => {
+                      const nextValues = { ...formData, full_name: e.target.value };
+                      setFormData((p) => ({ ...p, full_name: e.target.value }));
+                      setFormErrors(validateMemberForm(nextValues));
+                    }}
+                    className={`form-input ${formErrors.full_name ? "form-input--error" : ""}`}
                     required
                   />
+                  {formErrors.full_name && <p className="inline-field-error">{formErrors.full_name}</p>}
                 </div>
 
                 <div className="form-field">
-                  <label htmlFor="relationship" className="form-label">Relationship *</label>
+                  <label htmlFor="relationship" className="form-label">
+                    {t("family.relationship")} *
+                    <Tooltip content={t("family.relationshipHelp")} iconOnly>
+                      <span className="label-help">?</span>
+                    </Tooltip>
+                  </label>
                   <select
                     id="relationship"
                     value={formData.relationship}
-                    onChange={(e) => setFormData((p) => ({ ...p, relationship: e.target.value }))}
-                    className="form-input"
+                    onChange={(e) => {
+                      const nextValues = { ...formData, relationship: e.target.value };
+                      setFormData((p) => ({ ...p, relationship: e.target.value }));
+                      setFormErrors(validateMemberForm(nextValues));
+                    }}
+                    className={`form-input ${formErrors.relationship ? "form-input--error" : ""}`}
                     required
                   >
-                    <option value="">Select relationship</option>
+                    <option value="">{t("family.relationshipPlaceholder")}</option>
                     {RELATIONSHIP_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
                       </option>
                     ))}
                   </select>
+                  {formErrors.relationship && <p className="inline-field-error">{formErrors.relationship}</p>}
                 </div>
 
                 <div className="form-field">
-                  <label htmlFor="gender" className="form-label">Gender</label>
+                  <label htmlFor="gender" className="form-label">{t("family.gender")}</label>
                   <select
                     id="gender"
                     value={formData.gender}
                     onChange={(e) => setFormData((p) => ({ ...p, gender: e.target.value }))}
                     className="form-input"
                   >
-                    <option value="">Select gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
+                    <option value="">{t("family.genderPlaceholder")}</option>
+                    <option value="male">{t("family.male")}</option>
+                    <option value="female">{t("family.female")}</option>
+                    <option value="other">{t("family.other")}</option>
                   </select>
                 </div>
 
                 <div className="form-field">
-                  <label htmlFor="date_of_birth" className="form-label">Date of Birth</label>
+                  <label htmlFor="date_of_birth" className="form-label">
+                    {t("family.dateOfBirth")}
+                    <Tooltip content={t("family.dateOfBirthHelp")} iconOnly>
+                      <span className="label-help">?</span>
+                    </Tooltip>
+                  </label>
                   <input
                     id="date_of_birth"
                     type="date"
                     value={formData.date_of_birth}
-                    onChange={(e) => setFormData((p) => ({ ...p, date_of_birth: e.target.value }))}
-                    className="form-input"
+                    onChange={(e) => {
+                      const nextValues = { ...formData, date_of_birth: e.target.value };
+                      setFormData((p) => ({ ...p, date_of_birth: e.target.value }));
+                      setFormErrors(validateMemberForm(nextValues));
+                    }}
+                    className={`form-input ${formErrors.date_of_birth ? "form-input--error" : ""}`}
                     max={todayISO}
                   />
+                  {formErrors.date_of_birth && <p className="inline-field-error">{formErrors.date_of_birth}</p>}
                 </div>
 
                 <div className="form-field">
@@ -574,7 +624,7 @@ export default function FamilyTree() {
 
               <div className="form-footer">
                 <button type="button" onClick={closeModal} className="cancel-btn" style={{ padding: "0.75rem 1.5rem", borderRadius: "0.5rem" }}>
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button type="submit" className="save-btn" disabled={saving}>
                   {saving ? "Saving..." : editingMember ? "Update Member" : "Add Member"}
