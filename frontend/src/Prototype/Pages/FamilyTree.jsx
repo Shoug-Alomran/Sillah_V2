@@ -7,12 +7,14 @@ import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
+const NO_CONDITION_VALUE = "__none__";
+
 const EMPTY_FORM = {
   full_name: "",
   relationship: "",
   gender: "",
   date_of_birth: "",
-  condition_selection: "",
+  condition_selection: NO_CONDITION_VALUE,
   custom_condition: "",
   diagnosis_date: "",
   condition_notes: ""
@@ -54,6 +56,7 @@ export default function FamilyTree() {
   const [familyMembers, setFamilyMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
@@ -152,7 +155,7 @@ export default function FamilyTree() {
 
   function mapConditionToForm(conditionName) {
     const name = String(conditionName || "").trim();
-    if (!name) return { condition_selection: "", custom_condition: "" };
+    if (!name) return { condition_selection: NO_CONDITION_VALUE, custom_condition: "" };
     if (CONDITION_OPTIONS.includes(name)) return { condition_selection: name, custom_condition: "" };
     return { condition_selection: "Other", custom_condition: name };
   }
@@ -161,6 +164,7 @@ export default function FamilyTree() {
     setEditingMember(null);
     setFormData(EMPTY_FORM);
     setFormErrors({});
+    setSaveError("");
     setShowModal(true);
   }
 
@@ -179,6 +183,7 @@ export default function FamilyTree() {
       condition_notes: latestConditionsByMember[member.id]?.notes || ""
     });
     setFormErrors({});
+    setSaveError("");
     setShowModal(true);
   }
 
@@ -187,6 +192,7 @@ export default function FamilyTree() {
     setEditingMember(null);
     setFormData(EMPTY_FORM);
     setFormErrors({});
+    setSaveError("");
   }
 
   function isFutureDate(dateStr) {
@@ -199,20 +205,30 @@ export default function FamilyTree() {
     if (!values.full_name.trim()) errors.full_name = t("family.validationName");
     if (!values.relationship.trim()) errors.relationship = t("family.validationRelationship");
     if (isFutureDate(values.date_of_birth)) errors.date_of_birth = t("family.validationDateFuture");
+    if (isFutureDate(values.diagnosis_date)) errors.diagnosis_date = "Diagnosis date cannot be in the future.";
     return errors;
+  }
+
+  function getSelectedConditionName(values = formData) {
+    if (!values.condition_selection || values.condition_selection === NO_CONDITION_VALUE) return "";
+    if (values.condition_selection === "Other") return values.custom_condition.trim();
+    return values.condition_selection.trim();
   }
 
   async function handleSave(e) {
     e.preventDefault();
     if (!currentUser?.id || !isPatient) return;
+    setSaveError("");
 
     const nextErrors = validateMemberForm();
     setFormErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       return;
     }
-    if (isFutureDate(formData.diagnosis_date)) {
-      alert("Diagnosis date cannot be in the future.");
+
+    const selectedConditionName = getSelectedConditionName();
+    if (formData.condition_selection === "Other" && !selectedConditionName) {
+      setFormErrors((prev) => ({ ...prev, custom_condition: "Please enter the condition name for Other." }));
       return;
     }
 
@@ -257,19 +273,9 @@ export default function FamilyTree() {
 
       if (savedMember?.id) {
         const existingCondition = latestConditionsByMember[savedMember.id];
-        const conditionName =
-          formData.condition_selection === "Other"
-            ? formData.custom_condition.trim()
-            : formData.condition_selection.trim();
-
-        if (formData.condition_selection === "Other" && !conditionName) {
-          alert("Please enter the condition name for Other.");
-          setSaving(false);
-          return;
-        }
 
         const conditionPayload = {
-          condition_name: conditionName,
+          condition_name: selectedConditionName,
           diagnosis_date: formData.diagnosis_date || null,
           notes: formData.condition_notes?.trim() || null
         };
@@ -301,13 +307,27 @@ export default function FamilyTree() {
 
             setLatestConditionsByMember((prev) => ({ ...prev, [savedMember.id]: insertedCondition }));
           }
+        } else if (existingCondition?.id) {
+          const { error: conditionDeleteError } = await supabase
+            .from("medical_history")
+            .delete()
+            .eq("id", existingCondition.id)
+            .eq("family_member_id", savedMember.id);
+
+          if (conditionDeleteError) throw conditionDeleteError;
+
+          setLatestConditionsByMember((prev) => {
+            const next = { ...prev };
+            delete next[savedMember.id];
+            return next;
+          });
         }
       }
 
       closeModal();
     } catch (err) {
       console.error("Error saving family member:", err);
-      alert(err?.message || "Failed to save family member");
+      setSaveError(err?.message || "Failed to save family member");
     } finally {
       setSaving(false);
     }
@@ -471,13 +491,31 @@ export default function FamilyTree() {
 
       {showModal && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-content family-tree-modal"
+            dir={language === "ar" ? "rtl" : "ltr"}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h2 className="modal-title">{editingMember ? t("family.edit") : t("family.add")}</h2>
-              <button onClick={closeModal} className="modal-close" type="button">×</button>
+              <button
+                onClick={closeModal}
+                className="modal-close"
+                type="button"
+                aria-label="Close family member form"
+              >
+                ×
+              </button>
             </div>
 
             <form onSubmit={handleSave} className="modal-body">
+              {saveError && (
+                <div className="auth-error" role="alert" aria-live="polite" style={{ marginBottom: "1rem" }}>
+                  <AlertTriangle className="error-icon" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+
               <div className="form-content">
                 <div className="form-field">
                   <label htmlFor="full_name" className="form-label">{t("family.fullName")} *</label>
@@ -485,6 +523,7 @@ export default function FamilyTree() {
                     id="full_name"
                     type="text"
                     value={formData.full_name}
+                    aria-label={t("family.fullName")}
                     onChange={(e) => {
                       const nextValues = { ...formData, full_name: e.target.value };
                       setFormData((p) => ({ ...p, full_name: e.target.value }));
@@ -506,6 +545,8 @@ export default function FamilyTree() {
                   <select
                     id="relationship"
                     value={formData.relationship}
+                    aria-label={t("family.relationship")}
+                    dir="ltr"
                     onChange={(e) => {
                       const nextValues = { ...formData, relationship: e.target.value };
                       setFormData((p) => ({ ...p, relationship: e.target.value }));
@@ -529,6 +570,7 @@ export default function FamilyTree() {
                   <select
                     id="gender"
                     value={formData.gender}
+                    aria-label={t("family.gender")}
                     onChange={(e) => setFormData((p) => ({ ...p, gender: e.target.value }))}
                     className="form-input"
                   >
@@ -550,6 +592,7 @@ export default function FamilyTree() {
                     id="date_of_birth"
                     type="date"
                     value={formData.date_of_birth}
+                    aria-label={t("family.dateOfBirth")}
                     onChange={(e) => {
                       const nextValues = { ...formData, date_of_birth: e.target.value };
                       setFormData((p) => ({ ...p, date_of_birth: e.target.value }));
@@ -566,9 +609,22 @@ export default function FamilyTree() {
                   <select
                     id="condition_name"
                     value={formData.condition_selection}
-                    onChange={(e) => setFormData((p) => ({ ...p, condition_selection: e.target.value }))}
+                    aria-label="Condition or diagnosis"
+                    dir="ltr"
+                    onChange={(e) => {
+                      const nextSelection = e.target.value;
+                      const nextHasCondition = nextSelection && nextSelection !== NO_CONDITION_VALUE;
+                      setFormData((p) => ({
+                        ...p,
+                        condition_selection: nextSelection,
+                        custom_condition: nextSelection === "Other" ? p.custom_condition : "",
+                        diagnosis_date: nextHasCondition ? p.diagnosis_date : "",
+                        condition_notes: nextHasCondition ? p.condition_notes : "",
+                      }));
+                    }}
                     className="form-input"
                   >
+                    <option value={NO_CONDITION_VALUE}>No known condition</option>
                     <option value="">Select condition</option>
                     {CONDITION_OPTIONS.map((option) => (
                       <option key={option} value={option}>
@@ -585,35 +641,58 @@ export default function FamilyTree() {
                       id="custom_condition"
                       type="text"
                       value={formData.custom_condition}
-                      onChange={(e) => setFormData((p) => ({ ...p, custom_condition: e.target.value }))}
-                      className="form-input"
+                      aria-label="Other condition name"
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setFormData((p) => ({ ...p, custom_condition: nextValue }));
+                        if (nextValue.trim()) {
+                          setFormErrors((prev) => ({ ...prev, custom_condition: "" }));
+                        }
+                      }}
+                      className={`form-input ${formErrors.custom_condition ? "form-input--error" : ""}`}
                       placeholder="Enter uncommon condition name"
                     />
+                    {formErrors.custom_condition && (
+                      <p className="inline-field-error">{formErrors.custom_condition}</p>
+                    )}
                   </div>
                 )}
 
-                <div className="form-field">
-                  <label htmlFor="diagnosis_date" className="form-label">Condition Diagnosis Date</label>
-                  <input
-                    id="diagnosis_date"
-                    type="date"
-                    value={formData.diagnosis_date}
-                    onChange={(e) => setFormData((p) => ({ ...p, diagnosis_date: e.target.value }))}
-                    className="form-input"
-                    max={todayISO}
-                  />
-                </div>
+                {formData.condition_selection && formData.condition_selection !== NO_CONDITION_VALUE && (
+                  <>
+                    <div className="form-field">
+                      <label htmlFor="diagnosis_date" className="form-label">Condition Diagnosis Date</label>
+                      <input
+                        id="diagnosis_date"
+                        type="date"
+                        value={formData.diagnosis_date}
+                        aria-label="Condition diagnosis date"
+                        onChange={(e) => {
+                          const nextValues = { ...formData, diagnosis_date: e.target.value };
+                          setFormData((p) => ({ ...p, diagnosis_date: e.target.value }));
+                          setFormErrors(validateMemberForm(nextValues));
+                        }}
+                        className={`form-input ${formErrors.diagnosis_date ? "form-input--error" : ""}`}
+                        max={todayISO}
+                      />
+                      {formErrors.diagnosis_date && (
+                        <p className="inline-field-error">{formErrors.diagnosis_date}</p>
+                      )}
+                    </div>
 
-                <div className="form-field">
-                  <label htmlFor="condition_notes" className="form-label">Condition Notes</label>
-                  <textarea
-                    id="condition_notes"
-                    value={formData.condition_notes}
-                    onChange={(e) => setFormData((p) => ({ ...p, condition_notes: e.target.value }))}
-                    className="form-input form-textarea"
-                    rows={3}
-                  />
-                </div>
+                    <div className="form-field">
+                      <label htmlFor="condition_notes" className="form-label">Condition Notes</label>
+                      <textarea
+                        id="condition_notes"
+                        value={formData.condition_notes}
+                        aria-label="Condition notes"
+                        onChange={(e) => setFormData((p) => ({ ...p, condition_notes: e.target.value }))}
+                        className="form-input form-textarea"
+                        rows={3}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="form-footer">
