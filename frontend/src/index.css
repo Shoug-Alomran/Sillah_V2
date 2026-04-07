@@ -5067,6 +5067,33 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   margin: 0 0 0.5rem 0;
 }
 
+.health-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.health-title-row .health-condition-name {
+  margin-bottom: 0;
+}
+
+.doctor-report-card {
+  border-color: #14b8a6;
+}
+
+.doctor-report-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  background: #ccfbf1;
+  color: #0f766e;
+  border: 1px solid #5eead4;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .health-diagnosis-date {
   display: flex;
   align-items: center;
@@ -5216,6 +5243,78 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   color: #4b5563;
   margin: 0;
   line-height: 1.5;
+}
+
+.doctor-report-summary {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.875rem;
+  background: linear-gradient(135deg, #f0fdfa, #ecfeff);
+  border-left: 4px solid #14b8a6;
+  border-radius: 0.75rem;
+}
+
+.doctor-report-summary svg {
+  color: #14b8a6;
+  flex-shrink: 0;
+}
+
+.doctor-report-summary strong {
+  color: #111827;
+}
+
+.doctor-report-summary p {
+  margin: 0.25rem 0 0 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.doctor-report-sections {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.doctor-report-section {
+  padding: 0.875rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.doctor-report-section strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #111827;
+}
+
+.doctor-report-section p {
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.second-opinion-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: fit-content;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #14b8a6, #06b6d4);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow: 0 4px 8px rgba(20, 184, 166, 0.24);
+  transition: all 0.2s ease;
+}
+
+.second-opinion-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 14px rgba(20, 184, 166, 0.3);
 }
 
 /* Checkbox Label */

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Heart, Plus, Calendar, Edit, Trash2, AlertTriangle } from "lucide-react";
+import { Heart, Plus, Calendar, Edit, Trash2, AlertTriangle, FileText, Stethoscope } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -35,6 +35,12 @@ export default function MyHealth() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [doctors, setDoctors] = useState([]);
+  const [secondOpinionRecord, setSecondOpinionRecord] = useState(null);
+  const [selectedSecondOpinionDoctor, setSelectedSecondOpinionDoctor] = useState("");
+  const [secondOpinionMessage, setSecondOpinionMessage] = useState("");
+  const [requestingSecondOpinion, setRequestingSecondOpinion] = useState(false);
+  const [secondOpinionFeedback, setSecondOpinionFeedback] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +129,32 @@ export default function MyHealth() {
     };
   }, [currentUser?.id, isPatient, profile?.full_name]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchDoctors() {
+      if (!currentUser?.id || !isPatient) return;
+
+      const { data, error: doctorsError } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("role", "doctor")
+        .order("full_name", { ascending: true });
+
+      if (doctorsError) {
+        console.error("Error loading doctors:", doctorsError);
+        return;
+      }
+
+      if (!cancelled) setDoctors(data || []);
+    }
+
+    fetchDoctors();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, isPatient]);
+
   const resetForm = () => {
     setFormData(EMPTY_FORM);
     setEditingRecord(null);
@@ -134,6 +166,8 @@ export default function MyHealth() {
   };
 
   const openEdit = (record) => {
+    if (isDoctorReport(record)) return;
+
     setEditingRecord(record);
     const conditionName = String(record.condition_name || "").trim();
     const isListed = CONDITION_OPTIONS.includes(conditionName);
@@ -218,6 +252,12 @@ export default function MyHealth() {
 
   const handleDelete = async (recordId) => {
     if (!selfMember?.id) return;
+    const record = healthRecords.find((item) => item.id === recordId);
+    if (isDoctorReport(record)) {
+      alert("Doctor diagnosis reports cannot be deleted by patients.");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this health record?")) return;
 
     try {
@@ -247,6 +287,95 @@ export default function MyHealth() {
   };
 
   const profileName = useMemo(() => selfMember?.full_name || profile?.full_name || "You", [selfMember?.full_name, profile?.full_name]);
+
+  function isDoctorReport(record) {
+    return String(record?.notes || "").trim().toLowerCase().startsWith("doctor diagnosis report");
+  }
+
+  function parseDoctorReport(record) {
+    const text = String(record?.notes || "").trim();
+    const sections = {};
+    let currentLabel = "";
+
+    text
+      .split("\n")
+      .slice(1)
+      .forEach((line) => {
+        const match = line.match(/^([^:\n]+):\s*$/);
+        if (match) {
+          currentLabel = match[1].trim();
+          sections[currentLabel] = "";
+          return;
+        }
+
+        if (currentLabel) {
+          sections[currentLabel] = `${sections[currentLabel]}${sections[currentLabel] ? "\n" : ""}${line}`.trim();
+        }
+      });
+
+    return sections;
+  }
+
+  function openSecondOpinion(record) {
+    setSecondOpinionFeedback(null);
+    setSecondOpinionRecord(record);
+    setSelectedSecondOpinionDoctor("");
+    setSecondOpinionMessage("");
+  }
+
+  function closeSecondOpinion() {
+    setSecondOpinionRecord(null);
+    setSelectedSecondOpinionDoctor("");
+    setSecondOpinionMessage("");
+  }
+
+  async function handleSecondOpinionRequest(event) {
+    event.preventDefault();
+    if (!secondOpinionRecord?.id) return;
+    if (!selectedSecondOpinionDoctor) {
+      setSecondOpinionFeedback({ type: "error", message: "Please choose a doctor." });
+      return;
+    }
+
+    try {
+      setRequestingSecondOpinion(true);
+      setSecondOpinionFeedback(null);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error("Your session has expired. Please log in again.");
+
+      const response = await fetch("/api/second-opinion-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          medicalHistoryId: secondOpinionRecord.id,
+          requestedDoctorId: selectedSecondOpinionDoctor,
+          message: secondOpinionMessage,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Failed to request second opinion.");
+
+      setSecondOpinionFeedback({
+        type: "success",
+        message: "Second opinion request sent."
+      });
+      closeSecondOpinion();
+    } catch (requestError) {
+      console.error("Error requesting second opinion:", requestError);
+      setSecondOpinionFeedback({
+        type: "error",
+        message: requestError?.message || "Failed to request second opinion."
+      });
+    } finally {
+      setRequestingSecondOpinion(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -306,37 +435,91 @@ export default function MyHealth() {
           </div>
         ) : (
           <div className="health-records-grid">
-            {healthRecords.map((record) => (
-              <div key={record.id} className="health-record-card">
-                <div className="health-card-header">
-                  <div className="health-card-header-left">
-                    <h3 className="health-condition-name">{record.condition_name}</h3>
-                    <div className="health-diagnosis-date">
-                      <Calendar size={14} />
-                      <span>Diagnosed: {formatDate(record.diagnosis_date)}</span>
+            {healthRecords.map((record) => {
+              const doctorReport = isDoctorReport(record);
+              const reportSections = doctorReport ? parseDoctorReport(record) : {};
+
+              return (
+                <div key={record.id} className={`health-record-card ${doctorReport ? "doctor-report-card" : ""}`}>
+                  <div className="health-card-header">
+                    <div className="health-card-header-left">
+                      <div className="health-title-row">
+                        <h3 className="health-condition-name">{record.condition_name}</h3>
+                        {doctorReport && <span className="doctor-report-badge">Doctor Report</span>}
+                      </div>
+                      <div className="health-diagnosis-date">
+                        <Calendar size={14} />
+                        <span>Diagnosed: {formatDate(record.diagnosis_date)}</span>
+                      </div>
                     </div>
+
+                    {!doctorReport && (
+                      <div className="health-card-header-right">
+                        <button onClick={() => openEdit(record)} className="health-edit-btn" title="Edit">
+                          <Edit size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(record.id)} className="health-delete-btn" title="Delete">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="health-card-header-right">
-                    <button onClick={() => openEdit(record)} className="health-edit-btn" title="Edit">
-                      <Edit size={18} />
-                    </button>
-                    <button onClick={() => handleDelete(record.id)} className="health-delete-btn" title="Delete">
-                      <Trash2 size={18} />
-                    </button>
+                  <div className="health-card-content">
+                    {doctorReport ? (
+                      <>
+                        <div className="doctor-report-summary">
+                          <FileText size={18} />
+                          <div>
+                            <strong>Doctor diagnosis report</strong>
+                            <p>This report was written by a doctor and is read-only for patients.</p>
+                          </div>
+                        </div>
+
+                        <div className="doctor-report-sections">
+                          {Object.entries(reportSections).map(([label, value]) => (
+                            <div key={label} className="doctor-report-section">
+                              <strong>{label}</strong>
+                              <p>{value || "Not provided"}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          className="second-opinion-btn"
+                          onClick={() => openSecondOpinion(record)}
+                        >
+                          <Stethoscope size={18} />
+                          Request Second Opinion
+                        </button>
+                      </>
+                    ) : (
+                      record.notes && (
+                        <div className="health-notes-section">
+                          <strong>Notes:</strong>
+                          <p className="notes-text">{record.notes}</p>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        )}
 
-                <div className="health-card-content">
-                  {record.notes && (
-                    <div className="health-notes-section">
-                      <strong>Notes:</strong>
-                      <p className="notes-text">{record.notes}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+        {secondOpinionFeedback && (
+          <div className={`diagnosis-feedback diagnosis-feedback--${secondOpinionFeedback.type}`}>
+            <Stethoscope size={18} />
+            <span>{secondOpinionFeedback.message}</span>
+            <button
+              type="button"
+              onClick={() => setSecondOpinionFeedback(null)}
+              aria-label="Dismiss second opinion confirmation"
+            >
+              x
+            </button>
           </div>
         )}
       </div>
@@ -414,6 +597,71 @@ export default function MyHealth() {
                 </button>
                 <button type="submit" className="save-btn" disabled={saving}>
                   {saving ? "Saving..." : editingRecord ? "Update Record" : "Add Record"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {secondOpinionRecord && (
+        <div className="modal-overlay" onClick={closeSecondOpinion}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Request Second Opinion</h2>
+              <button onClick={closeSecondOpinion} className="modal-close" type="button">x</button>
+            </div>
+
+            <form onSubmit={handleSecondOpinionRequest} className="modal-body">
+              <div className="form-content">
+                <div className="diagnosis-report-context">
+                  <Stethoscope size={18} />
+                  <div>
+                    <strong>{secondOpinionRecord.condition_name}</strong>
+                    <p>Choose a doctor to review this diagnosis report.</p>
+                  </div>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="second-opinion-doctor" className="form-label">Choose Doctor *</label>
+                  <select
+                    id="second-opinion-doctor"
+                    value={selectedSecondOpinionDoctor}
+                    onChange={(event) => setSelectedSecondOpinionDoctor(event.target.value)}
+                    className="form-input"
+                    required
+                  >
+                    <option value="">Select a doctor</option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id} value={doctor.id}>
+                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"} - {doctor.email}
+                      </option>
+                    ))}
+                  </select>
+                  {doctors.length === 0 && (
+                    <p className="inline-field-error">No doctors are available yet.</p>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="second-opinion-message" className="form-label">Message for Doctor</label>
+                  <textarea
+                    id="second-opinion-message"
+                    value={secondOpinionMessage}
+                    onChange={(event) => setSecondOpinionMessage(event.target.value)}
+                    className="form-input form-textarea"
+                    rows={4}
+                    placeholder="Optional: explain what you want reviewed or any concerns you have."
+                  />
+                </div>
+              </div>
+
+              <div className="form-footer">
+                <button type="button" onClick={closeSecondOpinion} className="cancel-btn" disabled={requestingSecondOpinion}>
+                  Cancel
+                </button>
+                <button type="submit" className="save-btn" disabled={requestingSecondOpinion || doctors.length === 0}>
+                  {requestingSecondOpinion ? "Sending..." : "Send Request"}
                 </button>
               </div>
             </form>
