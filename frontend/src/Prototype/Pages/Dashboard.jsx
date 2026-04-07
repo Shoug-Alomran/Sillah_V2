@@ -10,7 +10,7 @@ import AppLoadingScreen from "../../Components/AppLoadingScreen";
 import { analyzeRisk, createRiskAlerts, riskLevelKey } from "../../utils/riskAssessment";
 
 export default function Dashboard() {
-  const { currentUser, profile, isAdmin, isDoctor, deleteAccount } = useAuth();
+  const { currentUser, profile, profileError, isAdmin, isDoctor, isPatient, deleteAccount } = useAuth();
   const { language, t } = useLanguage();
 
   const [stats, setStats] = useState({
@@ -119,7 +119,7 @@ export default function Dashboard() {
               highRiskCount
             }));
           }
-        } else {
+        } else if (isPatient) {
           // PATIENT dashboard
           const { data: familyMembers, error: fmErr } = await supabase
             .from("family_members")
@@ -192,10 +192,31 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, isAdmin, isDoctor, todayISO]);
+  }, [currentUser?.id, isAdmin, isDoctor, isPatient, todayISO]);
 
   if (loading) {
     return <AppLoadingScreen title="Dashboard" message="Loading your dashboard..." />;
+  }
+
+  if (!profile?.role) {
+    return (
+      <div className="dashboard-page">
+        <div className="dashboard-container">
+          <div className="quick-actions-card">
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+              <Shield size={24} color="#14b8a6" />
+              <h2 className="quick-actions-title" style={{ margin: 0 }}>
+                Profile needs attention
+              </h2>
+            </div>
+            <p>
+              {profileError ||
+                "Your login session is active, but the app could not load the matching profile row yet. Refresh once, or log out and back in if it continues."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   async function handleDeleteAccount() {

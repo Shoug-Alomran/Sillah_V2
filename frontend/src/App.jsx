@@ -47,9 +47,18 @@ function RouteFallback() {
 }
 
 function RoleRoute({ allow, children }) {
-  const { loading, profile, isAdmin, isDoctor, isPatient } = useAuth();
+  const { loading, profile, profileError, isAdmin, isDoctor, isPatient } = useAuth();
 
   if (loading) return <AppLoadingScreen />;
+
+  if (!profile?.role) {
+    return (
+      <AppLoadingScreen
+        title="Profile Check"
+        message={profileError || "Your account profile is still loading. Please refresh once if this continues."}
+      />
+    );
+  }
 
   if (Array.isArray(allow) && !allow.includes(profile?.role)) {
     return <Navigate to="/dashboard" replace />;

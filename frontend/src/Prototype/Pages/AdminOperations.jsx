@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabaseClient";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 const defaultClinicForm = { id: "", name: "", location: "", contact_number: "" };
@@ -69,7 +70,8 @@ export default function AdminOperations() {
   );
 
   const authHeaders = useCallback(async () => {
-    const token = await currentUser?.getIdToken?.();
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
     if (!token) throw new Error("Your session expired. Please log in again.");
     return {
       Authorization: `Bearer ${token}`,

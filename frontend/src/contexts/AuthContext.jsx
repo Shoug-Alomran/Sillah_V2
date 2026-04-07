@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { api } from "../api";
 
 const AuthContext = createContext(null);
-const AUTH_TIMEOUT_MS = 8000;
+const AUTH_TIMEOUT_MS = 15000;
 
 function withTimeout(promise, label, timeoutMs = AUTH_TIMEOUT_MS) {
   let timeoutId;
@@ -20,14 +20,18 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
+  const [profileError, setProfileError] = useState("");
 
   async function loadProfile(userId) {
     if (!userId) {
       setProfile(null);
+      setProfileError("");
       return;
     }
 
     try {
+      setProfileError("");
       const { data, error } = await withTimeout(
         supabase
           .from("profiles")
@@ -40,17 +44,25 @@ export function AuthProvider({ children }) {
       if (error) {
         console.warn("Profile loading failed:", error.message);
         setProfile(null);
+        setProfileError(error.message || "Unable to load your profile.");
+        return;
+      }
+      if (!data) {
+        setProfile(null);
+        setProfileError("No profile record was found for this account.");
         return;
       }
       setProfile(data);
     } catch (error) {
       console.warn("Profile loading failed:", error.message);
       setProfile(null);
+      setProfileError(error.message || "Unable to load your profile.");
     }
   }
 
   async function refreshSession() {
     try {
+      setAuthError("");
       const { data } = await withTimeout(supabase.auth.getSession(), "Session restore");
       const user = data?.session?.user ?? null;
 
@@ -59,13 +71,13 @@ export function AuthProvider({ children }) {
       else setProfile(null);
     } catch (error) {
       console.warn("Session restore failed:", error.message);
-      setCurrentUser(null);
-      setProfile(null);
+      setAuthError(error.message || "Unable to restore your session.");
     }
   }
 
   async function refreshProfile() {
     try {
+      setAuthError("");
       const { data } = await withTimeout(supabase.auth.getSession(), "Session refresh");
       const user = data?.session?.user ?? null;
       setCurrentUser(user);
@@ -73,12 +85,13 @@ export function AuthProvider({ children }) {
       else setProfile(null);
     } catch (error) {
       console.warn("Session refresh failed:", error.message);
-      setCurrentUser(null);
-      setProfile(null);
+      setAuthError(error.message || "Unable to refresh your session.");
     }
   }
 
   async function login(email, password) {
+    setAuthError("");
+    setProfileError("");
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data.user;
@@ -94,6 +107,8 @@ export function AuthProvider({ children }) {
       selectedDoctorId,
       selected_doctor_id
     } = payload;
+    setAuthError("");
+    setProfileError("");
     const selectedDoctor = selected_doctor_id ?? selectedDoctorId ?? null;
 
     const { data, error } = await supabase.auth.signUp({
@@ -160,6 +175,8 @@ export function AuthProvider({ children }) {
     if (error) throw error;
     setCurrentUser(null);
     setProfile(null);
+    setAuthError("");
+    setProfileError("");
   }
 
   async function deleteAccount(confirmation) {
@@ -178,6 +195,8 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
     setCurrentUser(null);
     setProfile(null);
+    setAuthError("");
+    setProfileError("");
   }
 
   useEffect(() => {
@@ -194,6 +213,7 @@ export function AuthProvider({ children }) {
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user ?? null;
       setCurrentUser(user);
+      setAuthError("");
 
       if (user) {
         try {
@@ -201,9 +221,11 @@ export function AuthProvider({ children }) {
         } catch (error) {
           console.warn("Auth profile sync failed:", error.message);
           setProfile(null);
+          setProfileError(error.message || "Unable to sync your profile.");
         }
       } else {
         setProfile(null);
+        setProfileError("");
       }
     });
 
@@ -219,6 +241,8 @@ export function AuthProvider({ children }) {
       currentUser,
       profile,
       loading,
+      authError,
+      profileError,
       login,
       signup,
       logout,
@@ -228,7 +252,7 @@ export function AuthProvider({ children }) {
       isPatient: role === "patient",
       isAdmin: role === "admin"
     };
-  }, [currentUser, profile, loading]);
+  }, [currentUser, profile, loading, authError, profileError]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
