@@ -1,14 +1,24 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, User, Mail, Phone, AlertTriangle, Users, FileText, Calendar, Copy } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, AlertTriangle, Users, FileText, Calendar, Copy, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
+const EMPTY_DIAGNOSIS_REPORT = {
+  diagnosis: "",
+  diagnosis_date: "",
+  symptoms: "",
+  assessment: "",
+  treatment_plan: "",
+  follow_up: ""
+};
+
 export default function PatientDetail() {
   const { id: patientId } = useParams();
   const navigate = useNavigate();
   const { isDoctor, currentUser } = useAuth();
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const [patient, setPatient] = useState(null);
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -16,6 +26,9 @@ export default function PatientDetail() {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [diagnosisReport, setDiagnosisReport] = useState(EMPTY_DIAGNOSIS_REPORT);
+  const [savingDiagnosis, setSavingDiagnosis] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,18 +139,115 @@ export default function PatientDetail() {
     return map;
   }, [familyMembers]);
 
+  const memberById = useMemo(() => {
+    const map = new Map();
+    familyMembers.forEach((member) => {
+      map.set(member.id, member);
+    });
+    return map;
+  }, [familyMembers]);
+
   const hereditaryCount = useMemo(() => {
     return medicalHistory.filter((row) => {
-      const text = `${row.condition_name || ""} ${row.notes || ""}`.toLowerCase();
-      return text.includes("sickle") || text.includes("heredit") || text.includes("genetic");
+      if (!row.condition_name && !row.notes) return false;
+      const member = memberById.get(row.family_member_id);
+      const relationship = String(member?.relationship || "").trim().toLowerCase();
+      return relationship !== "self";
     }).length;
-  }, [medicalHistory]);
+  }, [medicalHistory, memberById]);
 
   const copyPatientCode = () => {
     if (!patient?.patient_code) return;
     navigator.clipboard.writeText(patient.patient_code);
     alert("Patient code copied to clipboard!");
   };
+
+  function closeDiagnosisModal() {
+    setShowDiagnosisModal(false);
+    setDiagnosisReport(EMPTY_DIAGNOSIS_REPORT);
+  }
+
+  async function ensurePatientSelfMember() {
+    const existingSelf = familyMembers.find(
+      (member) => String(member.relationship || "").trim().toLowerCase() === "self"
+    );
+    if (existingSelf?.id) return existingSelf;
+
+    const { data, error: createError } = await supabase
+      .from("family_members")
+      .insert({
+        user_id: patientId,
+        full_name: patient?.full_name || "Patient",
+        relationship: "Self",
+        gender: null,
+        date_of_birth: null
+      })
+      .select("id, user_id, full_name, gender, relationship, date_of_birth, created_at")
+      .single();
+
+    if (createError) throw createError;
+    setFamilyMembers((prev) => [data, ...prev]);
+    return data;
+  }
+
+  function buildDiagnosisReportNotes() {
+    const sections = [
+      ["Symptoms / Concerns", diagnosisReport.symptoms],
+      ["Clinical Assessment", diagnosisReport.assessment],
+      ["Treatment Plan", diagnosisReport.treatment_plan],
+      ["Follow-up Instructions", diagnosisReport.follow_up],
+      ["Recorded By", currentUser?.email || "Assigned doctor"]
+    ];
+
+    const body = sections
+      .filter(([, value]) => value !== "")
+      .map(([label, value]) => (value ? `${label}:\n${value.trim()}` : label))
+      .join("\n\n");
+
+    return `Doctor Diagnosis Report${body ? `\n\n${body}` : ""}`;
+  }
+
+  async function handleSaveDiagnosisReport(event) {
+    event.preventDefault();
+
+    const diagnosisName = diagnosisReport.diagnosis.trim();
+    if (!diagnosisName) {
+      alert("Diagnosis is required.");
+      return;
+    }
+    if (diagnosisReport.diagnosis_date && diagnosisReport.diagnosis_date > todayISO) {
+      alert("Diagnosis date cannot be in the future.");
+      return;
+    }
+
+    try {
+      setSavingDiagnosis(true);
+      const selfMember = await ensurePatientSelfMember();
+
+      const payload = {
+        family_member_id: selfMember.id,
+        condition_name: diagnosisName,
+        diagnosis_date: diagnosisReport.diagnosis_date || todayISO,
+        notes: buildDiagnosisReportNotes()
+      };
+
+      const { data, error: insertError } = await supabase
+        .from("medical_history")
+        .insert(payload)
+        .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+        .single();
+
+      if (insertError) throw insertError;
+
+      setMedicalHistory((prev) => [data, ...prev]);
+      closeDiagnosisModal();
+    } catch (saveError) {
+      console.error("Error saving diagnosis report:", saveError);
+      alert(saveError?.message || "Failed to save diagnosis report.");
+    } finally {
+      setSavingDiagnosis(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -214,6 +324,15 @@ export default function PatientDetail() {
                 </div>
               </div>
             </div>
+
+            <button
+              onClick={() => setShowDiagnosisModal(true)}
+              className="diagnosis-report-btn"
+              type="button"
+            >
+              <Plus size={18} />
+              Add Diagnosis Report
+            </button>
           </div>
 
           <div style={{ background: "#dbeafe", border: "1px solid #bfdbfe", borderRadius: "0.5rem", padding: "1rem", marginTop: "1rem" }}>
@@ -405,6 +524,127 @@ export default function PatientDetail() {
           </div>
         </div>
       </div>
+
+      {showDiagnosisModal && (
+        <div className="modal-overlay" onClick={closeDiagnosisModal}>
+          <div className="modal-content large-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Doctor Diagnosis Report</h2>
+              <button onClick={closeDiagnosisModal} className="modal-close" type="button">
+                x
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDiagnosisReport} className="modal-body">
+              <div className="form-content">
+                <div className="diagnosis-report-context">
+                  <FileText size={18} />
+                  <div>
+                    <strong>Patient:</strong> {patient.full_name || patient.email || "Patient"}
+                    <p>This report will be saved to the patient's personal medical history.</p>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-field">
+                    <label htmlFor="doctor-diagnosis" className="form-label">Diagnosis *</label>
+                    <input
+                      id="doctor-diagnosis"
+                      type="text"
+                      value={diagnosisReport.diagnosis}
+                      onChange={(event) =>
+                        setDiagnosisReport((prev) => ({ ...prev, diagnosis: event.target.value }))
+                      }
+                      className="form-input"
+                      placeholder="e.g., Hypertension, Heart Condition"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="doctor-diagnosis-date" className="form-label">Diagnosis Date</label>
+                    <input
+                      id="doctor-diagnosis-date"
+                      type="date"
+                      value={diagnosisReport.diagnosis_date}
+                      onChange={(event) =>
+                        setDiagnosisReport((prev) => ({ ...prev, diagnosis_date: event.target.value }))
+                      }
+                      className="form-input"
+                      max={todayISO}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="doctor-symptoms" className="form-label">Symptoms / Concerns</label>
+                  <textarea
+                    id="doctor-symptoms"
+                    value={diagnosisReport.symptoms}
+                    onChange={(event) =>
+                      setDiagnosisReport((prev) => ({ ...prev, symptoms: event.target.value }))
+                    }
+                    className="form-input form-textarea"
+                    rows="3"
+                    placeholder="Summarize symptoms, concerns, or reason for diagnosis."
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="doctor-assessment" className="form-label">Clinical Assessment</label>
+                  <textarea
+                    id="doctor-assessment"
+                    value={diagnosisReport.assessment}
+                    onChange={(event) =>
+                      setDiagnosisReport((prev) => ({ ...prev, assessment: event.target.value }))
+                    }
+                    className="form-input form-textarea"
+                    rows="4"
+                    placeholder="Document findings, risk context, and clinical reasoning."
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="doctor-treatment-plan" className="form-label">Treatment Plan</label>
+                  <textarea
+                    id="doctor-treatment-plan"
+                    value={diagnosisReport.treatment_plan}
+                    onChange={(event) =>
+                      setDiagnosisReport((prev) => ({ ...prev, treatment_plan: event.target.value }))
+                    }
+                    className="form-input form-textarea"
+                    rows="4"
+                    placeholder="Recommended medication, lifestyle changes, referrals, or testing."
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="doctor-follow-up" className="form-label">Follow-up Instructions</label>
+                  <textarea
+                    id="doctor-follow-up"
+                    value={diagnosisReport.follow_up}
+                    onChange={(event) =>
+                      setDiagnosisReport((prev) => ({ ...prev, follow_up: event.target.value }))
+                    }
+                    className="form-input form-textarea"
+                    rows="3"
+                    placeholder="Next appointment, warning signs, or monitoring instructions."
+                  />
+                </div>
+              </div>
+
+              <div className="form-footer">
+                <button type="button" onClick={closeDiagnosisModal} className="cancel-btn" disabled={savingDiagnosis}>
+                  Cancel
+                </button>
+                <button type="submit" className="save-btn" disabled={savingDiagnosis}>
+                  {savingDiagnosis ? "Saving..." : "Save Diagnosis Report"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function Medications() {
-  const { currentUser, profile, isDoctor, isPatient } = useAuth();
+  const { currentUser, profile, isDoctor } = useAuth();
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const viewMode = useMemo(() => (isDoctor ? "doctor" : "patient"), [isDoctor]);
@@ -65,9 +65,25 @@ export default function Medications() {
       setLoading(true);
       setPageError(null);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("medications")
-        .select("*")
+        .select("*");
+
+      if (viewMode === "patient") {
+        const filters = [
+          `patient_id.eq.${currentUser.id}`,
+          `user_id.eq.${currentUser.id}`,
+          `prescribed_for_patient.eq.${currentUser.id}`,
+        ];
+        if (profile?.patient_code) {
+          filters.push(`prescribed_for_patient.eq.${profile.patient_code}`);
+        }
+        query = query.or(filters.join(","));
+      } else {
+        query = query.or(`doctor_id.eq.${currentUser.id},prescribed_by.eq.${currentUser.id}`);
+      }
+
+      const { data, error } = await query
         .order("start_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
 
@@ -396,12 +412,43 @@ export default function Medications() {
   const activeMedications = medications.filter((m) => m.is_active);
   const inactiveMedications = medications.filter((m) => !m.is_active);
 
+  function renderMedicationHeader(showAction = true) {
+    return (
+      <div className="medications-header">
+        <div>
+          <h1 className="medications-title">
+            <Pill className="title-icon" />
+            {isDoctor ? "Prescribe Medications" : "My Medications"}
+          </h1>
+          <p className="medications-subtitle">
+            {isDoctor
+              ? "Prescribe and manage patient medications"
+              : "Track your medications and get reminders"}
+          </p>
+        </div>
+
+        {showAction && (
+          <button onClick={openCreateModal} className="add-medication-btn" disabled={!medicationsAvailable}>
+            <Plus className="btn-icon" />
+            {isDoctor ? "Prescribe Medication" : "Add Medication"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="medications-page">
         <div className="medications-container">
-          <h1 className="medications-title">Medications</h1>
-          <p>Loading medications...</p>
+          {renderMedicationHeader(false)}
+          <div className="empty-state medications-status-card">
+            <Pill className="empty-icon medications-status-icon" />
+            <p className="empty-title">Loading medications...</p>
+            <p className="empty-text">
+              We are checking the patient-doctor medication records.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -411,6 +458,7 @@ export default function Medications() {
     return (
       <div className="medications-page">
         <div className="medications-container">
+          {renderMedicationHeader(false)}
           <div className="empty-state">
             <AlertCircle className="empty-icon" style={{ color: "#ef4444" }} />
             <p className="empty-title">{pageError}</p>
@@ -426,25 +474,7 @@ export default function Medications() {
   return (
     <div className="medications-page">
       <div className="medications-container">
-        {/* Header */}
-        <div className="medications-header">
-          <div>
-            <h1 className="medications-title">
-              <Pill className="title-icon" />
-              {isDoctor ? "Prescribe Medications" : "My Medications"}
-            </h1>
-            <p className="medications-subtitle">
-              {isDoctor
-                ? "Prescribe and manage patient medications"
-                : "Track your medications and get reminders"}
-            </p>
-          </div>
-
-          <button onClick={openCreateModal} className="add-medication-btn" disabled={!medicationsAvailable}>
-            <Plus className="btn-icon" />
-            {isDoctor ? "Prescribe Medication" : "Add Medication"}
-          </button>
-        </div>
+        {renderMedicationHeader()}
 
         {/* Active Medications */}
         <div className="medications-section">

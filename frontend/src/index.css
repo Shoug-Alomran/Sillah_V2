@@ -5629,14 +5629,17 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
 /* ===== MEDICATIONS PAGE ===== */
 
 .medications-page {
-  padding: 2rem;
-  background: linear-gradient(135deg, #e0f7fa 0%, #e1f5fe 100%);
   min-height: 100vh;
+  background: linear-gradient(135deg, #e0f7f4 0%, #cffafe 50%, #dbeafe 100%);
+  padding: 2rem 1rem;
 }
 
 .medications-container {
-  max-width: 1400px;
+  max-width: 80rem;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 /* Header */
@@ -5644,7 +5647,8 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 2rem;
+  margin-bottom: 0.5rem;
+  animation: fadeInDown 0.5s ease-out;
 }
 
 .medications-title {
@@ -5723,7 +5727,18 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
 
 /* Section */
 .medications-section {
-  margin-bottom: 3rem;
+  margin-bottom: 1.5rem;
+}
+
+.medications-status-card {
+  min-height: 14rem;
+  display: grid;
+  place-items: center;
+}
+
+.medications-status-icon {
+  color: #14b8a6;
+  animation: pulse 2s infinite;
 }
 
 .section-title {
@@ -6014,6 +6029,48 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   margin: 0 0 0.5rem 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.diagnosis-report-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #14b8a6, #06b6d4);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(20, 184, 166, 0.22);
+  transition: all 0.2s ease;
+}
+
+.diagnosis-report-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(20, 184, 166, 0.28);
+}
+
+.diagnosis-report-context {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f0fdfa, #ecfeff);
+  border-left: 4px solid #14b8a6;
+  border-radius: 0.75rem;
+  color: #111827;
+}
+
+.diagnosis-report-context svg {
+  color: #14b8a6;
+  flex-shrink: 0;
+}
+
+.diagnosis-report-context p {
+  margin: 0.25rem 0 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .patient-id-copy-box {

@@ -287,7 +287,31 @@ export default function Appointments() {
         .order("created_at", { ascending: false });
 
       if (fetchError) throw fetchError;
-      setAppointments(data || []);
+
+      let rows = data || [];
+      if (isDoctor && rows.length > 0) {
+        const patientIds = [...new Set(rows.map((row) => row.patient_id).filter(Boolean))];
+        if (patientIds.length > 0) {
+          const { data: profiles, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, full_name, email, patient_code")
+            .in("id", patientIds);
+
+          if (profileError) throw profileError;
+
+          const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+          rows = rows.map((row) => {
+            const patient = profilesById.get(row.patient_id);
+            return {
+              ...row,
+              patient_name: row.patient_name || patient?.full_name || patient?.email || "Patient",
+              patient_code: row.patient_code || patient?.patient_code || null,
+            };
+          });
+        }
+      }
+
+      setAppointments(rows);
     } catch (fetchErr) {
       console.error("Error fetching appointments:", fetchErr);
       setError(fetchErr?.message || "Unable to load appointments. Please try again.");
@@ -377,21 +401,23 @@ export default function Appointments() {
   async function resolveDoctorIdForPatient() {
     if (!currentUser?.id) return null;
 
-    const { data: relation } = await supabase
+    const { data: relation, error: relationError } = await supabase
       .from("doctor_patient")
       .select("doctor_id")
       .eq("patient_id", currentUser.id)
       .limit(1)
       .maybeSingle();
 
+    if (relationError) throw relationError;
     if (relation?.doctor_id) return relation.doctor_id;
 
-    const { data: patientProfile } = await supabase
+    const { data: patientProfile, error: profileError } = await supabase
       .from("profiles")
       .select("selected_doctor_id")
       .eq("id", currentUser.id)
       .maybeSingle();
 
+    if (profileError) throw profileError;
     return patientProfile?.selected_doctor_id || null;
   }
 
@@ -409,6 +435,12 @@ export default function Appointments() {
 
     try {
       const doctorId = await resolveDoctorIdForPatient();
+      if (!doctorId) {
+        throw new Error(
+          "No doctor is linked to your account yet. Please connect with a doctor before booking an appointment."
+        );
+      }
+
       const data = await insertAppointment({
         patient_id: currentUser.id,
         doctor_id: doctorId,
@@ -434,12 +466,21 @@ export default function Appointments() {
     if (!window.confirm(t("appointments.cancelConfirm"))) return;
 
     try {
-      const { error: updateError } = await supabase
+      let query = supabase
         .from("appointments")
         .update({ status: "cancelled" })
-        .eq("id", appointmentId);
+        .eq("id", appointmentId)
+        .select("id, status");
+
+      if (isPatient) query = query.eq("patient_id", currentUser.id);
+      if (isDoctor) query = query.eq("doctor_id", currentUser.id);
+
+      const { data, error: updateError } = await query;
 
       if (updateError) throw updateError;
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error("No appointment row was updated. Please verify your appointment access.");
+      }
 
       setAppointments((prev) =>
         prev.map((appointment) =>
