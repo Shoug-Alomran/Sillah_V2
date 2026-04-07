@@ -5,6 +5,7 @@ const PUBLIC_PROFILE_FIELDS = "id, email, full_name, phone_number, role, selecte
 const CLINIC_FIELDS = "id, name, location, contact_number, created_at";
 const CONTENT_FIELDS =
   "id, title, summary, category, reading_time, image_url, content_body, status, is_featured, created_at, updated_at, reviewed_at, reviewed_by";
+const CONTENT_FALLBACK_FIELDS = "id, title, summary, category, reading_time, image_url, status, is_featured, created_at, updated_at";
 const AUDIT_FIELDS = "id, actor_id, action_type, target_type, target_id, details, created_at";
 
 async function getAuthenticatedUser(req, admin) {
@@ -265,10 +266,43 @@ async function listContent(admin) {
     .select(CONTENT_FIELDS)
     .order("updated_at", { ascending: false, nullsFirst: false });
   if (error) {
-    if (isRecoverableAdminDataError(error)) return [];
+    if (isMissingSchemaColumn(error)) {
+      const { data: fallbackData, error: fallbackError } = await admin
+        .from("awareness_content")
+        .select(CONTENT_FALLBACK_FIELDS)
+        .order("updated_at", { ascending: false, nullsFirst: false });
+
+      if (fallbackError) {
+        if (isRecoverableAdminDataError(fallbackError)) return [];
+        throw fallbackError;
+      }
+
+      return (fallbackData || []).map((item) => ({
+        ...item,
+        content_body: null,
+        reviewed_at: null,
+        reviewed_by: null,
+      }));
+    }
+    if (isMissingTable(error)) return [];
     throw error;
   }
   return data || [];
+}
+
+async function selectContent(admin, query) {
+  const { data, error } = await query.select(CONTENT_FIELDS).single();
+  if (!error) return data;
+  if (!isMissingSchemaColumn(error)) throw error;
+
+  const { data: fallbackData, error: fallbackError } = await query.select(CONTENT_FALLBACK_FIELDS).single();
+  if (fallbackError) throw fallbackError;
+  return {
+    ...fallbackData,
+    content_body: null,
+    reviewed_at: null,
+    reviewed_by: null,
+  };
 }
 
 async function upsertContent(admin, actorId, body) {
@@ -280,11 +314,12 @@ async function upsertContent(admin, actorId, body) {
     category: String(body.category || "").trim() || "General",
     reading_time: Number(body.reading_time || body.readingTime || 5),
     image_url: String(body.image_url || body.imageUrl || "").trim() || null,
-    content_body: String(body.content_body || body.contentBody || "").trim() || null,
     status: ["pending", "approved", "rejected"].includes(status) ? status : "pending",
     is_featured: Boolean(body.is_featured || body.isFeatured),
     updated_at: new Date().toISOString(),
   };
+
+  const contentBody = String(body.content_body || body.contentBody || "").trim() || null;
 
   if (!content.title || !content.summary) throw new Error("Content title and summary are required.");
 
@@ -293,12 +328,29 @@ async function upsertContent(admin, actorId, body) {
     content.reviewed_by = actorId;
   }
 
-  const query = contentId
-    ? admin.from("awareness_content").update(content).eq("id", contentId)
-    : admin.from("awareness_content").insert(content);
+  const fullContent = {
+    ...content,
+    content_body: contentBody,
+  };
 
-  const { data, error } = await query.select(CONTENT_FIELDS).single();
-  if (error) throw error;
+  const query = contentId
+    ? admin.from("awareness_content").update(fullContent).eq("id", contentId)
+    : admin.from("awareness_content").insert(fullContent);
+
+  let data;
+  try {
+    data = await selectContent(admin, query);
+  } catch (error) {
+    if (!isMissingSchemaColumn(error)) throw error;
+
+    const fallbackContent = { ...content };
+    delete fallbackContent.reviewed_at;
+    delete fallbackContent.reviewed_by;
+    const fallbackQuery = contentId
+      ? admin.from("awareness_content").update(fallbackContent).eq("id", contentId)
+      : admin.from("awareness_content").insert(fallbackContent);
+    data = await selectContent(admin, fallbackQuery);
+  }
 
   await writeAudit(admin, actorId, contentId ? "content.updated" : "content.created", "awareness_content", data.id, {
     title: content.title,

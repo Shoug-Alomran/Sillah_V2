@@ -16,6 +16,42 @@ create table if not exists public.awareness_content (
   updated_at timestamptz not null default now()
 );
 
+alter table public.awareness_content
+add column if not exists title text;
+
+alter table public.awareness_content
+add column if not exists summary text;
+
+alter table public.awareness_content
+add column if not exists category text not null default 'General';
+
+alter table public.awareness_content
+add column if not exists reading_time integer not null default 5;
+
+alter table public.awareness_content
+add column if not exists image_url text;
+
+alter table public.awareness_content
+add column if not exists content_body text;
+
+alter table public.awareness_content
+add column if not exists status text not null default 'pending';
+
+alter table public.awareness_content
+add column if not exists is_featured boolean not null default false;
+
+alter table public.awareness_content
+add column if not exists reviewed_at timestamptz;
+
+alter table public.awareness_content
+add column if not exists reviewed_by uuid references public.profiles(id) on delete set null;
+
+alter table public.awareness_content
+add column if not exists created_at timestamptz not null default now();
+
+alter table public.awareness_content
+add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists awareness_content_status_idx
 on public.awareness_content (status);
 
