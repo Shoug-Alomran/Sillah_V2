@@ -5,6 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
+import { analyzeRisk } from "../../utils/riskAssessment";
 
 const EMPTY_DIAGNOSIS_REPORT = {
   diagnosis: "",
@@ -141,22 +142,10 @@ export default function PatientDetail() {
     return map;
   }, [familyMembers]);
 
-  const memberById = useMemo(() => {
-    const map = new Map();
-    familyMembers.forEach((member) => {
-      map.set(member.id, member);
-    });
-    return map;
-  }, [familyMembers]);
-
-  const hereditaryCount = useMemo(() => {
-    return medicalHistory.filter((row) => {
-      if (!row.condition_name && !row.notes) return false;
-      const member = memberById.get(row.family_member_id);
-      const relationship = String(member?.relationship || "").trim().toLowerCase();
-      return relationship !== "self";
-    }).length;
-  }, [medicalHistory, memberById]);
+  const hereditaryCount = useMemo(
+    () => analyzeRisk(familyMembers, medicalHistory).counts.familyRiskRecords,
+    [familyMembers, medicalHistory]
+  );
 
   const copyPatientCode = () => {
     if (!patient?.patient_code) return;

@@ -3,6 +3,7 @@ import { Bell, CheckCircle, AlertTriangle, Info, ExternalLink } from "lucide-rea
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
+import { analyzeRisk, createRiskAlerts } from "../../utils/riskAssessment";
 
 export default function Alerts() {
   const { currentUser, isPatient } = useAuth();
@@ -11,6 +12,8 @@ export default function Alerts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
+
+  const computedReadStorageKey = currentUser?.id ? `sillah-computed-alerts-read:${currentUser.id}` : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -42,17 +45,46 @@ export default function Alerts() {
           .eq("patient_id", currentUser.id)
           .order("created_at", { ascending: false });
 
-        if (fetchError) throw fetchError;
+        if (fetchError) console.warn("Stored alerts skipped:", fetchError.message);
+
+        const { data: familyMembers, error: familyError } = await supabase
+          .from("family_members")
+          .select("id, user_id, full_name, gender, relationship, date_of_birth, created_at")
+          .eq("user_id", currentUser.id);
+        if (familyError) throw familyError;
+
+        const familyMemberIds = (familyMembers || []).map((member) => member.id).filter(Boolean);
+        let medicalHistory = [];
+        if (familyMemberIds.length > 0) {
+          const { data: historyRows, error: historyError } = await supabase
+            .from("medical_history")
+            .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+            .in("family_member_id", familyMemberIds);
+          if (historyError) throw historyError;
+          medicalHistory = historyRows || [];
+        }
 
         if (!cancelled) {
-          const normalized = (data || []).map((item) => ({
+          const storedAlerts = fetchError ? [] : data || [];
+          const normalizedStoredAlerts = storedAlerts.map((item) => ({
             ...item,
             title: item.title || item.alert_type || "Risk Alert",
             message: item.message || item.description || item.notes || "Health-related alert",
             priority: (item.priority || "moderate").toLowerCase(),
-            is_read: typeof item.is_read === "boolean" ? item.is_read : false
+            is_read: typeof item.is_read === "boolean" ? item.is_read : false,
+            computed: false,
           }));
-          setAlerts(normalized);
+          const existingTypes = new Set(normalizedStoredAlerts.map((item) => item.alert_type).filter(Boolean));
+          const computedReadIds = new Set(
+            computedReadStorageKey
+              ? JSON.parse(window.localStorage.getItem(computedReadStorageKey) || "[]")
+              : []
+          );
+          const computedAlerts = createRiskAlerts(analyzeRisk(familyMembers || [], medicalHistory))
+            .filter((item) => !existingTypes.has(item.alert_type))
+            .map((item) => ({ ...item, is_read: computedReadIds.has(item.id) }));
+
+          setAlerts([...computedAlerts, ...normalizedStoredAlerts]);
         }
       } catch (err) {
         console.error("Error fetching alerts:", err);
@@ -66,12 +98,23 @@ export default function Alerts() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, isPatient]);
+  }, [currentUser?.id, isPatient, computedReadStorageKey]);
 
-  const supportsReadState = useMemo(() => alerts.some((a) => Object.prototype.hasOwnProperty.call(a, "is_read")), [alerts]);
+  const supportsReadState = true;
 
   async function handleMarkAsRead(alertId) {
-    if (!supportsReadState) return;
+    const targetAlert = alerts.find((item) => item.id === alertId);
+    if (!targetAlert) return;
+
+    if (targetAlert.computed) {
+      if (computedReadStorageKey) {
+        const existing = new Set(JSON.parse(window.localStorage.getItem(computedReadStorageKey) || "[]"));
+        existing.add(alertId);
+        window.localStorage.setItem(computedReadStorageKey, JSON.stringify([...existing]));
+      }
+      setAlerts((prev) => prev.map((a) => (a.id === alertId ? { ...a, is_read: true } : a)));
+      return;
+    }
 
     const { error: updateError } = await supabase
       .from("risk_alerts")
@@ -89,21 +132,37 @@ export default function Alerts() {
   }
 
   async function handleMarkAllAsRead() {
-    if (!supportsReadState) return;
-
     const unreadIds = alerts.filter((a) => !a.is_read).map((a) => a.id);
     if (unreadIds.length === 0) return;
+
+    const storedUnreadIds = alerts
+      .filter((a) => !a.is_read && !a.computed)
+      .map((a) => a.id);
+
+    if (storedUnreadIds.length === 0) {
+      if (computedReadStorageKey) {
+        window.localStorage.setItem(computedReadStorageKey, JSON.stringify(unreadIds));
+      }
+      setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true })));
+      return;
+    }
 
     const { error: updateError } = await supabase
       .from("risk_alerts")
       .update({ is_read: true })
-      .in("id", unreadIds)
+      .in("id", storedUnreadIds)
       .eq("patient_id", currentUser.id);
 
     if (updateError) {
       console.error("Error marking all alerts as read:", updateError);
       alert("This alert list cannot be marked as read with current schema.");
       return;
+    }
+
+    if (computedReadStorageKey) {
+      const existing = new Set(JSON.parse(window.localStorage.getItem(computedReadStorageKey) || "[]"));
+      alerts.filter((a) => a.computed).forEach((a) => existing.add(a.id));
+      window.localStorage.setItem(computedReadStorageKey, JSON.stringify([...existing]));
     }
 
     setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true })));

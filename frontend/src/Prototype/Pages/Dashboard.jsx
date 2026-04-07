@@ -7,6 +7,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
+import { analyzeRisk, createRiskAlerts, riskLevelKey } from "../../utils/riskAssessment";
 
 export default function Dashboard() {
   const { currentUser, profile, isAdmin, isDoctor, deleteAccount } = useAuth();
@@ -73,12 +74,41 @@ export default function Dashboard() {
 
           let highRiskCount = 0;
           if (patientIds.length > 0) {
-            const { count: riskCount, error: riskErr } = await supabase
-              .from("risk_alerts")
-              .select("*", { count: "exact", head: true })
-              .in("patient_id", patientIds);
+            const { data: patientFamilyMembers, error: familyRiskErr } = await supabase
+              .from("family_members")
+              .select("id, user_id, relationship")
+              .in("user_id", patientIds);
+            if (familyRiskErr) console.warn("Doctor risk count skipped:", familyRiskErr.message);
 
-            if (!riskErr) highRiskCount = riskCount || 0;
+            const memberIds = (patientFamilyMembers || []).map((member) => member.id).filter(Boolean);
+            let patientMedicalHistory = [];
+            if (memberIds.length > 0) {
+              const { data: historyRows, error: historyRiskErr } = await supabase
+                .from("medical_history")
+                .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+                .in("family_member_id", memberIds);
+              if (historyRiskErr) console.warn("Doctor risk history skipped:", historyRiskErr.message);
+              patientMedicalHistory = historyRows || [];
+            }
+
+            const membersByPatientId = (patientFamilyMembers || []).reduce((acc, member) => {
+              if (!acc[member.user_id]) acc[member.user_id] = [];
+              acc[member.user_id].push(member);
+              return acc;
+            }, {});
+            const memberToPatientId = new Map((patientFamilyMembers || []).map((member) => [member.id, member.user_id]));
+            const historyByPatientId = patientMedicalHistory.reduce((acc, row) => {
+              const rowPatientId = memberToPatientId.get(row.family_member_id);
+              if (!rowPatientId) return acc;
+              if (!acc[rowPatientId]) acc[rowPatientId] = [];
+              acc[rowPatientId].push(row);
+              return acc;
+            }, {});
+
+            highRiskCount = patientIds.filter((patientId) => {
+              const summary = analyzeRisk(membersByPatientId[patientId] || [], historyByPatientId[patientId] || []);
+              return riskLevelKey(summary.severity) === "high";
+            }).length;
           }
 
           if (!cancelled) {
@@ -122,11 +152,24 @@ export default function Dashboard() {
             healthRecordsCount = count || 0;
           }
 
-          const { count: unreadAlertsCount, error: raErr } = await supabase
+          const { count: storedUnreadAlertsCount, error: raErr } = await supabase
             .from("risk_alerts")
             .select("*", { count: "exact", head: true })
             .eq("patient_id", currentUser.id);
           if (raErr) console.warn("Alerts count skipped:", raErr.message);
+
+          const familyMemberIds = allFamilyMembers.map((member) => member.id).filter(Boolean);
+          let allMedicalHistory = [];
+          if (familyMemberIds.length > 0) {
+            const { data: familyHistory, error: familyHistoryErr } = await supabase
+              .from("medical_history")
+              .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+              .in("family_member_id", familyMemberIds);
+            if (familyHistoryErr) console.warn("Family risk history skipped:", familyHistoryErr.message);
+            allMedicalHistory = familyHistory || [];
+          }
+
+          const generatedAlertsCount = createRiskAlerts(analyzeRisk(allFamilyMembers, allMedicalHistory)).length;
 
           if (!cancelled) {
             setStats((s) => ({
@@ -134,7 +177,7 @@ export default function Dashboard() {
               familyMembersCount,
               appointmentCount: appointmentCount || 0,
               healthRecordsCount,
-              unreadAlertsCount: unreadAlertsCount || 0
+              unreadAlertsCount: generatedAlertsCount + (storedUnreadAlertsCount || 0)
             }));
           }
         }

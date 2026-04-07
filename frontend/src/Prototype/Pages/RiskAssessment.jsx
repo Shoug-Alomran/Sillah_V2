@@ -4,33 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
-
-const CLOSE_RELATIONSHIPS = new Set(["father", "mother", "brother", "sister", "son", "daughter"]);
-const MODERATE_RELATIONSHIPS = new Set(["grandfather", "grandmother", "uncle", "aunt", "cousin"]);
-
-function normalize(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function classifyCondition(conditionName, notes) {
-  const text = `${conditionName || ""} ${notes || ""}`.toLowerCase();
-
-  const isSickleCell = text.includes("sickle") || text.includes("scd");
-  const isHereditary =
-    isSickleCell ||
-    text.includes("genetic") ||
-    text.includes("heredit") ||
-    text.includes("family history") ||
-    text.includes("thalassemia") ||
-    text.includes("hemophilia") ||
-    text.includes("cystic fibrosis") ||
-    text.includes("huntington") ||
-    text.includes("muscular dystrophy") ||
-    text.includes("brca") ||
-    text.includes("g6pd");
-
-  return { isSickleCell, isHereditary };
-}
+import { analyzeRisk, isSelfRelationship } from "../../utils/riskAssessment";
 
 export default function RiskAssessment() {
   const navigate = useNavigate();
@@ -73,9 +47,7 @@ export default function RiskAssessment() {
 
         if (famErr) throw famErr;
 
-        const relatives = (familyMembers || []).filter(
-          (m) => normalize(m.relationship) !== "self"
-        );
+        const relatives = (familyMembers || []).filter((m) => !isSelfRelationship(m.relationship));
         const relativeIds = relatives.map((m) => m.id);
 
         let history = [];
@@ -109,93 +81,7 @@ export default function RiskAssessment() {
     };
   }, [currentUser?.id, isPatient]);
 
-  const membersById = useMemo(() => {
-    const map = new Map();
-    members.forEach((member) => map.set(member.id, member));
-    return map;
-  }, [members]);
-
-  const analyzedRecords = useMemo(() => {
-    return records.map((record) => {
-      const member = membersById.get(record.family_member_id);
-      const relation = normalize(member?.relationship);
-      const relationWeight = CLOSE_RELATIONSHIPS.has(relation)
-        ? 2
-        : MODERATE_RELATIONSHIPS.has(relation)
-          ? 1.5
-          : 1;
-
-      const classification = classifyCondition(record.condition_name, record.notes);
-
-      let points = 0;
-      if (classification.isSickleCell) points += 40;
-      else if (classification.isHereditary) points += 25;
-      else points += 10;
-
-      points += relationWeight * 10;
-
-      return {
-        ...record,
-        member,
-        relation,
-        relationWeight,
-        ...classification,
-        points
-      };
-    });
-  }, [records, membersById]);
-
-  const riskSummary = useMemo(() => {
-    const sickle = analyzedRecords.filter((r) => r.isSickleCell);
-    const hereditary = analyzedRecords.filter((r) => r.isHereditary);
-
-    const uniqueAffectedRelatives = new Set(hereditary.map((r) => r.family_member_id)).size;
-    const closeAffected = new Set(
-      hereditary
-        .filter((r) => CLOSE_RELATIONSHIPS.has(r.relation))
-        .map((r) => r.family_member_id)
-    ).size;
-
-    const rawScore = analyzedRecords.reduce((sum, r) => sum + r.points, 0);
-    const normalizedScore = Math.min(100, Math.round(rawScore / Math.max(1, members.length)));
-
-    let level = "Low Risk";
-    let color = "green";
-    let severity = "low";
-    let message = "No significant hereditary risk patterns were detected from current family data.";
-
-    if (normalizedScore >= 70 || sickle.length >= 2 || closeAffected >= 2) {
-      level = "High Risk";
-      color = "red";
-      severity = "critical";
-      message = "Strong hereditary risk pattern detected. Prioritize specialist consultation and early screening.";
-    } else if (normalizedScore >= 35 || sickle.length >= 1 || closeAffected >= 1) {
-      level = "Moderate Risk";
-      color = "amber";
-      severity = "moderate";
-      message = "Some hereditary risk indicators are present. Preventive follow-up is recommended.";
-    } else if (analyzedRecords.length > 0) {
-      level = "Low-Moderate Risk";
-      color = "yellow";
-      severity = "low-moderate";
-      message = "Limited risk indicators found. Continue monitoring and keep records updated.";
-    }
-
-    return {
-      level,
-      color,
-      severity,
-      message,
-      score: normalizedScore,
-      counts: {
-        totalRecords: analyzedRecords.length,
-        hereditaryRecords: hereditary.length,
-        sickleRecords: sickle.length,
-        uniqueAffectedRelatives,
-        closeAffected
-      }
-    };
-  }, [analyzedRecords, members.length]);
+  const riskSummary = useMemo(() => analyzeRisk(members, records), [members, records]);
 
   const recommendations = useMemo(() => {
     if (riskSummary.severity === "critical") {

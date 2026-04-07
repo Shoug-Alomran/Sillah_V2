@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
+import { analyzeRisk, isSelfRelationship, riskLevelKey } from "../../utils/riskAssessment";
 
 export default function Patients() {
   const navigate = useNavigate();
@@ -99,11 +100,41 @@ export default function Patients() {
           ...(profiles || []).map((profile) => [profile.id, profile]),
         ]);
 
-        // 3) Attach placeholder fields you were using in UI
+        const { data: familyRows, error: familyRowsError } = await supabase
+          .from("family_members")
+          .select("id, user_id, relationship")
+          .in("user_id", patientIds);
+        if (familyRowsError) throw familyRowsError;
+
+        const familyMemberIds = (familyRows || []).map((member) => member.id).filter(Boolean);
+        let historyRows = [];
+        if (familyMemberIds.length > 0) {
+          const { data: historyData, error: historyRowsError } = await supabase
+            .from("medical_history")
+            .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+            .in("family_member_id", familyMemberIds);
+          if (historyRowsError) throw historyRowsError;
+          historyRows = historyData || [];
+        }
+
+        const familyByPatientId = (familyRows || []).reduce((acc, member) => {
+          if (!acc[member.user_id]) acc[member.user_id] = [];
+          acc[member.user_id].push(member);
+          return acc;
+        }, {});
+        const memberToPatientId = new Map((familyRows || []).map((member) => [member.id, member.user_id]));
+        const historyByPatientId = historyRows.reduce((acc, row) => {
+          const rowPatientId = memberToPatientId.get(row.family_member_id);
+          if (!rowPatientId) return acc;
+          if (!acc[rowPatientId]) acc[rowPatientId] = [];
+          acc[rowPatientId].push(row);
+          return acc;
+        }, {});
+
         const patientsData = [...profilesById.values()].map((p) => ({
           ...p,
-          family_members_count: 0, // (optional: replace later when you add a family_members table)
-          risk_level: "none",       // (optional: replace later when you add risk assessments)
+          family_members_count: (familyByPatientId[p.id] || []).filter((member) => !isSelfRelationship(member.relationship)).length,
+          risk_level: riskLevelKey(analyzeRisk(familyByPatientId[p.id] || [], historyByPatientId[p.id] || []).severity),
           is_second_opinion_only: !assignedPatientIds.has(p.id)
         }));
 
