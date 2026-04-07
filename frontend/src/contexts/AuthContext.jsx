@@ -36,6 +36,14 @@ export function AuthProvider({ children }) {
     if (user) await loadProfile(user.id);
   }
 
+  async function refreshProfile() {
+    const { data } = await supabase.auth.getSession();
+    const user = data?.session?.user ?? null;
+    setCurrentUser(user);
+    if (user) await loadProfile(user.id);
+    else setProfile(null);
+  }
+
   async function login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -173,6 +181,7 @@ export function AuthProvider({ children }) {
       signup,
       logout,
       deleteAccount,
+      refreshProfile,
       isDoctor: role === "doctor",
       isPatient: role === "patient",
       isAdmin: role === "admin"

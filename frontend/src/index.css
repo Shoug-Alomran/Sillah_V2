@@ -3429,6 +3429,34 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   color: #0f766e;
 }
 
+.admin-signup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid #99f6e4;
+  background: linear-gradient(135deg, #f0fdfa, #ecfeff);
+}
+
+.admin-signup-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.admin-signup-note svg {
+  flex-shrink: 0;
+  color: #14b8a6;
+}
+
+.admin-signup-note p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .admin-privacy-card {
   display: flex;
   align-items: flex-start;

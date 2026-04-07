@@ -6,6 +6,7 @@ import {
   User,
   AlertCircle,
   Phone,
+  Shield,
   Stethoscope,
   Users,
 } from "lucide-react";
@@ -23,6 +24,7 @@ export default function Signup() {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [userType, setUserType] = useState("patient");
+  const [adminInviteCode, setAdminInviteCode] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState("");
   const [doctors, setDoctors] = useState([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
@@ -31,7 +33,7 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const { signup } = useAuth();
+  const { refreshProfile, signup } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -49,6 +51,7 @@ export default function Signup() {
       fullName,
       phoneNumber,
       selectedDoctor,
+      adminInviteCode,
       ...overrides,
     };
 
@@ -77,6 +80,10 @@ export default function Signup() {
 
     if (userType === "patient" && doctors.length > 0 && !values.selectedDoctor) {
       errors.selectedDoctor = t("signup.validationDoctorRequired");
+    }
+
+    if (userType === "admin" && !String(values.adminInviteCode || "").trim()) {
+      errors.adminInviteCode = "Admin invite code is required.";
     }
 
     return errors;
@@ -131,12 +138,13 @@ export default function Signup() {
     try {
       setLoading(true);
 
+      const signupRole = userType === "admin" ? "doctor" : userType;
       const { session } = await signup({
         email: trimmedEmail,
         password,
         fullName: trimmedName,
         phoneNumber: cleanPhone,
-        role: userType,
+        role: signupRole,
         selected_doctor_id: userType === "patient" ? selectedDoctor || null : null,
       });
 
@@ -144,6 +152,23 @@ export default function Signup() {
         setInfo(t("signup.infoCreated"));
         navigate("/login");
         return;
+      }
+
+      if (userType === "admin") {
+        const accessToken = session?.access_token;
+        if (!accessToken) throw new Error("Admin signup requires an active session. Please log in and try again.");
+
+        const response = await fetch("/api/admin/claim", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ inviteCode: adminInviteCode }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Unable to activate admin account.");
+        await refreshProfile();
       }
 
       navigate("/dashboard");
@@ -224,6 +249,15 @@ export default function Signup() {
                 >
                   <Stethoscope className="user-type-icon" />
                   <span>{t("signup.doctor")}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`user-type-btn ${userType === "admin" ? "active" : ""}`}
+                  onClick={() => setUserType("admin")}
+                  disabled={loading}
+                >
+                  <Shield className="user-type-icon" />
+                  <span>Admin</span>
                 </button>
               </div>
             </div>
@@ -361,6 +395,43 @@ export default function Signup() {
                     {selectedDoctorProfile.bio && <p>{selectedDoctorProfile.bio}</p>}
                   </div>
                 )}
+              </div>
+            )}
+
+            {userType === "admin" && (
+              <div className="admin-signup-panel">
+                <div className="admin-signup-note">
+                  <Shield className="form-label-icon" />
+                  <p>
+                    Admin signup is invite-only. Admins can review doctor professional profiles,
+                    but they do not get access to patient medical records.
+                  </p>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="adminInviteCode" className="form-label">
+                    <Shield className="form-label-icon" />
+                    Admin Invite Code *
+                  </label>
+                  <input
+                    id="adminInviteCode"
+                    type="password"
+                    value={adminInviteCode}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setAdminInviteCode(nextValue);
+                      setFieldErrors(validate({ adminInviteCode: nextValue }));
+                    }}
+                    className={`form-input ${fieldErrors.adminInviteCode ? "form-input--error" : ""}`}
+                    placeholder="Enter the private admin invite code"
+                    required
+                    disabled={loading}
+                    autoComplete="off"
+                  />
+                  {fieldErrors.adminInviteCode && (
+                    <p className="inline-field-error">{fieldErrors.adminInviteCode}</p>
+                  )}
+                </div>
               </div>
             )}
 
