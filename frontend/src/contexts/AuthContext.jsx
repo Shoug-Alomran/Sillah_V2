@@ -3,6 +3,18 @@ import { supabase } from "../lib/supabaseClient";
 import { api } from "../api";
 
 const AuthContext = createContext(null);
+const AUTH_TIMEOUT_MS = 8000;
+
+function withTimeout(promise, label, timeoutMs = AUTH_TIMEOUT_MS) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out. Please check your connection and try again.`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -15,33 +27,55 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id,email,full_name,phone_number,role,selected_doctor_id,patient_code,created_at")
-      .eq("id", userId)
-      .maybeSingle();
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from("profiles")
+          .select("id,email,full_name,phone_number,role,selected_doctor_id,patient_code,created_at")
+          .eq("id", userId)
+          .maybeSingle(),
+        "Profile loading"
+      );
 
-    if (error) {
+      if (error) {
+        console.warn("Profile loading failed:", error.message);
+        setProfile(null);
+        return;
+      }
+      setProfile(data);
+    } catch (error) {
+      console.warn("Profile loading failed:", error.message);
       setProfile(null);
-      return;
     }
-    setProfile(data);
   }
 
   async function refreshSession() {
-    const { data } = await supabase.auth.getSession();
-    const user = data?.session?.user ?? null;
+    try {
+      const { data } = await withTimeout(supabase.auth.getSession(), "Session restore");
+      const user = data?.session?.user ?? null;
 
-    setCurrentUser(user);
-    if (user) await loadProfile(user.id);
+      setCurrentUser(user);
+      if (user) await loadProfile(user.id);
+      else setProfile(null);
+    } catch (error) {
+      console.warn("Session restore failed:", error.message);
+      setCurrentUser(null);
+      setProfile(null);
+    }
   }
 
   async function refreshProfile() {
-    const { data } = await supabase.auth.getSession();
-    const user = data?.session?.user ?? null;
-    setCurrentUser(user);
-    if (user) await loadProfile(user.id);
-    else setProfile(null);
+    try {
+      const { data } = await withTimeout(supabase.auth.getSession(), "Session refresh");
+      const user = data?.session?.user ?? null;
+      setCurrentUser(user);
+      if (user) await loadProfile(user.id);
+      else setProfile(null);
+    } catch (error) {
+      console.warn("Session refresh failed:", error.message);
+      setCurrentUser(null);
+      setProfile(null);
+    }
   }
 
   async function login(email, password) {
@@ -161,8 +195,16 @@ export function AuthProvider({ children }) {
       const user = session?.user ?? null;
       setCurrentUser(user);
 
-      if (user) await loadProfile(user.id);
-      else setProfile(null);
+      if (user) {
+        try {
+          await loadProfile(user.id);
+        } catch (error) {
+          console.warn("Auth profile sync failed:", error.message);
+          setProfile(null);
+        }
+      } else {
+        setProfile(null);
+      }
     });
 
     return () => {
