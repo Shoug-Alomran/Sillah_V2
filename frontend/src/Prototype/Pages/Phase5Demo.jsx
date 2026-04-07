@@ -1,4 +1,13 @@
 import { useEffect, useState } from "react";
+import {
+  Database,
+  Play,
+  Plus,
+  Server,
+  Sparkles,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 import { api } from "../../api";
 
 function normalizeRows(payload) {
@@ -9,25 +18,47 @@ function normalizeRows(payload) {
   return [];
 }
 
-function Tabs({ tab, setTab }) {
-  const tabs = ["Users", "Family Members", "Queries"];
+function EmptyTable({ message }) {
   return (
-    <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-      {tabs.map((t) => (
-        <button
-          key={t}
-          onClick={() => setTab(t)}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 10,
-            border: "1px solid #ddd",
-            background: tab === t ? "#f2f2f2" : "white",
-            cursor: "pointer",
-          }}
-        >
-          {t}
-        </button>
-      ))}
+    <div className="phase-empty">
+      <Database className="phase-empty-icon" />
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function ErrorMessage({ error }) {
+  if (!error) return null;
+  return <p className="phase-error">{error}</p>;
+}
+
+function Tabs({ tab, setTab }) {
+  const tabs = [
+    { label: "Users", icon: UsersRound },
+    { label: "Family Members", icon: UsersRound },
+    { label: "Queries", icon: Database },
+  ];
+
+  return (
+    <div className="phase-tabs" role="tablist" aria-label="Phase 5 demo sections">
+      {tabs.map((item) => {
+        const Icon = item.icon;
+        const active = tab === item.label;
+
+        return (
+          <button
+            key={item.label}
+            onClick={() => setTab(item.label)}
+            className={`phase-tab ${active ? "phase-tab--active" : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={active}
+          >
+            <Icon className="phase-tab-icon" />
+            {item.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -80,37 +111,55 @@ function Users() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginTop: 0 }}>Users (CRUD)</h2>
+    <section className="phase-card">
+      <div className="phase-section-header">
+        <div>
+          <p className="phase-eyebrow">CRUD Table</p>
+          <h2 className="phase-section-title">Users</h2>
+          <p className="phase-section-copy">
+            Create sample users, then verify the UI refreshes from the backend.
+          </p>
+        </div>
+        <div className="phase-section-icon">
+          <UsersRound />
+        </div>
+      </div>
 
-      <form onSubmit={add} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
+      <form onSubmit={add} className="phase-form phase-form--four">
         <input
+          className="phase-input"
           placeholder="First name"
           value={form.first_name}
           onChange={(e) => setForm({ ...form, first_name: e.target.value })}
         />
         <input
+          className="phase-input"
           placeholder="Last name"
           value={form.last_name}
           onChange={(e) => setForm({ ...form, last_name: e.target.value })}
         />
         <input
+          className="phase-input"
           placeholder="Email"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
         <input
+          className="phase-input"
           placeholder="Phone number"
           value={form.phone_number}
           onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
         />
-        <button type="submit">Add User</button>
+        <button className="phase-primary-btn" type="submit">
+          <Plus className="phase-btn-icon" />
+          Add User
+        </button>
       </form>
 
-      {err && <p style={{ color: "crimson" }}>{err}</p>}
+      <ErrorMessage error={err} />
 
-      <div style={{ marginTop: 16, overflowX: "auto" }}>
-        <table border="1" cellPadding="8" style={{ borderCollapse: "collapse", width: "100%" }}>
+      <div className="phase-table-wrap">
+        <table className="phase-table">
           <thead>
             <tr>
               <th>user_id</th>
@@ -130,14 +179,18 @@ function Users() {
                 <td>{r.email}</td>
                 <td>{r.phone_number}</td>
                 <td>
-                  <button onClick={() => del(r.user_id)}>Delete</button>
+                  <button className="phase-delete-btn" onClick={() => del(r.user_id)} type="button">
+                    <Trash2 className="phase-btn-icon" />
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {rows.length === 0 && <EmptyTable message="No users loaded yet." />}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -193,42 +246,61 @@ function FamilyMembers() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginTop: 0 }}>Family Members (CRUD)</h2>
+    <section className="phase-card">
+      <div className="phase-section-header">
+        <div>
+          <p className="phase-eyebrow">Relational Data</p>
+          <h2 className="phase-section-title">Family Members</h2>
+          <p className="phase-section-copy">
+            Add family-member rows connected to existing users and inspect joined emails.
+          </p>
+        </div>
+        <div className="phase-section-icon">
+          <UsersRound />
+        </div>
+      </div>
 
-      <form onSubmit={add} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
+      <form onSubmit={add} className="phase-form phase-form--five">
         <input
+          className="phase-input"
           placeholder="user_id (existing)"
           value={form.user_id}
           onChange={(e) => setForm({ ...form, user_id: e.target.value })}
         />
         <input
+          className="phase-input"
           placeholder="First name"
           value={form.first_name}
           onChange={(e) => setForm({ ...form, first_name: e.target.value })}
         />
         <input
+          className="phase-input"
           placeholder="Last name"
           value={form.last_name}
           onChange={(e) => setForm({ ...form, last_name: e.target.value })}
         />
         <input
+          className="phase-input"
           type="date"
           value={form.date_of_birth}
           onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
         />
         <input
+          className="phase-input"
           placeholder="Relationship"
           value={form.relationship}
           onChange={(e) => setForm({ ...form, relationship: e.target.value })}
         />
-        <button type="submit">Add Family Member</button>
+        <button className="phase-primary-btn" type="submit">
+          <Plus className="phase-btn-icon" />
+          Add Family Member
+        </button>
       </form>
 
-      {err && <p style={{ color: "crimson" }}>{err}</p>}
+      <ErrorMessage error={err} />
 
-      <div style={{ marginTop: 16, overflowX: "auto" }}>
-        <table border="1" cellPadding="8" style={{ borderCollapse: "collapse", width: "100%" }}>
+      <div className="phase-table-wrap">
+        <table className="phase-table">
           <thead>
             <tr>
               <th>member_id</th>
@@ -252,14 +324,18 @@ function FamilyMembers() {
                 <td>{String(r.date_of_birth || "").slice(0, 10)}</td>
                 <td>{r.user_email}</td>
                 <td>
-                  <button onClick={() => del(r.member_id)}>Delete</button>
+                  <button className="phase-delete-btn" onClick={() => del(r.member_id)} type="button">
+                    <Trash2 className="phase-btn-icon" />
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {rows.length === 0 && <EmptyTable message="No family members loaded yet." />}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -280,22 +356,41 @@ function Queries() {
   }
 
   return (
-    <div>
-      <h2 style={{ marginTop: 0 }}>Queries (q01–q40)</h2>
-
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <input value={qid} onChange={(e) => setQid(e.target.value)} placeholder="q01 ... q40" />
-        <button onClick={runQuery}>Run</button>
-        <span style={{ color: "#666" }}>Try: q24, q22, q36</span>
+    <section className="phase-card">
+      <div className="phase-section-header">
+        <div>
+          <p className="phase-eyebrow">SQL Showcase</p>
+          <h2 className="phase-section-title">Queries q01-q40</h2>
+          <p className="phase-section-copy">
+            Run stored query endpoints and preview the JSON returned by the backend.
+          </p>
+        </div>
+        <div className="phase-section-icon">
+          <Database />
+        </div>
       </div>
 
-      {err && <pre style={{ color: "crimson", marginTop: 14 }}>{err}</pre>}
+      <div className="phase-query-bar">
+        <input
+          className="phase-input phase-query-input"
+          value={qid}
+          onChange={(e) => setQid(e.target.value)}
+          placeholder="q01 ... q40"
+        />
+        <button className="phase-primary-btn" onClick={runQuery} type="button">
+          <Play className="phase-btn-icon" />
+          Run Query
+        </button>
+        <span className="phase-query-hint">Try: q24, q22, q36</span>
+      </div>
+
+      <ErrorMessage error={err} />
       {result && (
-        <pre style={{ marginTop: 14, background: "#f7f7f7", padding: 12, borderRadius: 10 }}>
+        <pre className="phase-result">
           {JSON.stringify(result, null, 2)}
         </pre>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -303,17 +398,36 @@ export default function Phase5Demo() {
   const [tab, setTab] = useState("Users");
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 20 }}>
-      <h1 style={{ marginTop: 0 }}>Sillah — Phase 5 Demo</h1>
-      <p style={{ color: "#666", marginTop: 6 }}>
-        This page connects the React UI to the MySQL/Express backend and runs SQL through the application.
-      </p>
+    <div className="phase-page">
+      <div className="phase-bg-orb phase-bg-orb--one" />
+      <div className="phase-bg-orb phase-bg-orb--two" />
 
-      <Tabs tab={tab} setTab={setTab} />
+      <main className="phase-container">
+        <section className="phase-hero">
+          <div>
+            <div className="phase-hero-badge">
+              <Sparkles className="phase-hero-badge-icon" />
+              CS340 Phase 5 Integration
+            </div>
+            <h1 className="phase-title">Sillah Phase 5 Demo</h1>
+            <p className="phase-subtitle">
+              A polished database demo that connects the React interface to the MySQL/Express backend and runs SQL through the application.
+            </p>
+          </div>
 
-      {tab === "Users" && <Users />}
-      {tab === "Family Members" && <FamilyMembers />}
-      {tab === "Queries" && <Queries />}
+          <div className="phase-hero-card">
+            <Server className="phase-hero-card-icon" />
+            <span>React UI</span>
+            <strong>MySQL + Express</strong>
+          </div>
+        </section>
+
+        <Tabs tab={tab} setTab={setTab} />
+
+        {tab === "Users" && <Users />}
+        {tab === "Family Members" && <FamilyMembers />}
+        {tab === "Queries" && <Queries />}
+      </main>
     </div>
   );
 }

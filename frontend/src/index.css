@@ -786,6 +786,414 @@ body {
   cursor: not-allowed;
 }
 
+/* ===== PHASE 5 DEMO ===== */
+.phase-page {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.18), transparent 28rem),
+    radial-gradient(circle at 85% 5%, rgba(6, 182, 212, 0.16), transparent 26rem),
+    linear-gradient(135deg, #e0f7f4 0%, #ecfeff 48%, #dbeafe 100%);
+  padding: 3rem 1.25rem 5rem;
+}
+
+.phase-bg-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(16px);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.phase-bg-orb--one {
+  width: 18rem;
+  height: 18rem;
+  background: rgba(20, 184, 166, 0.16);
+  top: 8rem;
+  left: -6rem;
+}
+
+.phase-bg-orb--two {
+  width: 22rem;
+  height: 22rem;
+  background: rgba(37, 99, 235, 0.1);
+  right: -7rem;
+  bottom: 8rem;
+}
+
+.phase-container {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.phase-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2rem;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-radius: 2rem;
+  padding: 2.25rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(18px);
+  margin-bottom: 1.5rem;
+}
+
+.phase-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.phase-hero-badge-icon,
+.phase-btn-icon,
+.phase-tab-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.phase-title {
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  color: #0f172a;
+  margin-bottom: 1rem;
+}
+
+.phase-subtitle {
+  color: #475569;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.7;
+  max-width: 48rem;
+}
+
+.phase-hero-card {
+  min-width: 15rem;
+  min-height: 11rem;
+  border-radius: 1.5rem;
+  background: linear-gradient(135deg, #14b8a6, #06b6d4);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  box-shadow: 0 20px 40px rgba(20, 184, 166, 0.25);
+}
+
+.phase-hero-card-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-bottom: auto;
+}
+
+.phase-hero-card span {
+  opacity: 0.82;
+  font-weight: 600;
+}
+
+.phase-hero-card strong {
+  font-size: 1.35rem;
+  margin-top: 0.25rem;
+}
+
+.phase-tabs {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 1.25rem;
+  width: fit-content;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.phase-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  border-radius: 0.95rem;
+  padding: 0.8rem 1rem;
+  background: transparent;
+  color: #475569;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.phase-tab:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.phase-tab--active {
+  background: #14b8a6;
+  color: white;
+  box-shadow: 0 10px 20px rgba(20, 184, 166, 0.2);
+}
+
+.phase-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(20, 184, 166, 0.16);
+  border-radius: 2rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+  padding: 2rem;
+  animation: fadeIn 0.35s ease-out;
+}
+
+.phase-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.phase-eyebrow {
+  color: #0f766e;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.phase-section-title {
+  color: #0f172a;
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  letter-spacing: -0.03em;
+}
+
+.phase-section-copy {
+  color: #64748b;
+  line-height: 1.6;
+  margin-top: 0.35rem;
+}
+
+.phase-section-icon {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 1rem;
+  background: #ecfeff;
+  color: #0f766e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.phase-section-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.phase-form,
+.phase-query-bar {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.phase-form--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+}
+
+.phase-form--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+}
+
+.phase-query-bar {
+  grid-template-columns: minmax(12rem, 18rem) auto 1fr;
+  align-items: center;
+}
+
+.phase-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #0f172a;
+  border-radius: 0.85rem;
+  padding: 0.85rem 1rem;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.phase-input:focus {
+  outline: none;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12);
+}
+
+.phase-primary-btn,
+.phase-delete-btn {
+  border: none;
+  border-radius: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.phase-primary-btn {
+  background: linear-gradient(135deg, #14b8a6, #06b6d4);
+  color: white;
+  padding: 0.85rem 1.1rem;
+  box-shadow: 0 12px 24px rgba(20, 184, 166, 0.22);
+  white-space: nowrap;
+}
+
+.phase-primary-btn:hover,
+.phase-delete-btn:hover {
+  transform: translateY(-1px);
+}
+
+.phase-delete-btn {
+  background: #fff1f2;
+  color: #b91c1c;
+  padding: 0.55rem 0.75rem;
+}
+
+.phase-error {
+  color: #b91c1c;
+  background: #fff1f2;
+  border: 1px solid #fecaca;
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  margin: 1rem 0;
+}
+
+.phase-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dbeafe;
+  border-radius: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.phase-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 760px;
+  background: white;
+}
+
+.phase-table th,
+.phase-table td {
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+
+.phase-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.phase-table tr:hover td {
+  background: #f8fafc;
+}
+
+.phase-empty {
+  display: grid;
+  place-items: center;
+  gap: 0.5rem;
+  color: #64748b;
+  padding: 2rem;
+  background: white;
+}
+
+.phase-empty-icon {
+  width: 2rem;
+  height: 2rem;
+  color: #14b8a6;
+}
+
+.phase-query-hint {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.phase-result {
+  margin-top: 1rem;
+  background: #0f172a;
+  color: #d1fae5;
+  padding: 1.25rem;
+  border-radius: 1.25rem;
+  overflow: auto;
+  max-height: 28rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 1100px) {
+  .phase-form--four,
+  .phase-form--five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .phase-primary-btn {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .phase-page {
+    padding: 1.25rem 0.85rem 3rem;
+  }
+
+  .phase-hero {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+  }
+
+  .phase-hero-card {
+    min-width: 0;
+    min-height: 9rem;
+  }
+
+  .phase-tabs {
+    width: 100%;
+  }
+
+  .phase-tab {
+    flex: 1;
+  }
+
+  .phase-card {
+    padding: 1.25rem;
+    border-radius: 1.5rem;
+  }
+
+  .phase-section-header {
+    align-items: center;
+  }
+
+  .phase-form--four,
+  .phase-form--five,
+  .phase-query-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
 body[dir="rtl"] .auth-card,
 body[dir="rtl"] .appointments-container,
 body[dir="rtl"] .family-tree-container,
