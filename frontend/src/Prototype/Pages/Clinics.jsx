@@ -4,6 +4,7 @@ import { MapPin, Search, Star, Phone, Clock, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { clinicsData } from "../../data/clinics";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 export default function Clinics() {
   const navigate = useNavigate();
@@ -67,17 +68,7 @@ export default function Clinics() {
   };
 
   if (authLoading) {
-    return (
-      <div className="clinics-page">
-        <div className="clinics-container">
-          <div className="empty-state">
-            <MapPin className="empty-icon" />
-            <p className="empty-title">Loading...</p>
-            <p className="empty-text">Preparing clinic list.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="Clinics" message="Preparing clinic list..." />;
   }
 
   return (

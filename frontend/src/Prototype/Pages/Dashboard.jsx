@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Calendar, BookOpen, Users, Activity, Stethoscope, AlertTriangle, FileText, Shield } from "lucide-react";
+import { Bell, Calendar, BookOpen, Users, Activity, Stethoscope, AlertTriangle, FileText, Shield, ClipboardCheck, BadgeCheck } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import { useLanguage } from "../../contexts/LanguageContext";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 export default function Dashboard() {
-  const { currentUser, profile, isDoctor, deleteAccount } = useAuth();
+  const { currentUser, profile, isAdmin, isDoctor, deleteAccount } = useAuth();
   const { language, t } = useLanguage();
 
   const [stats, setStats] = useState({
@@ -36,7 +37,19 @@ export default function Dashboard() {
       try {
         setLoading(true);
 
-        if (isDoctor) {
+        if (isAdmin) {
+          if (!cancelled) {
+            setStats((s) => ({
+              ...s,
+              patientCount: 0,
+              appointmentCount: 0,
+              healthRecordsCount: 0,
+              familyMembersCount: 0,
+              unreadAlertsCount: 0,
+              highRiskCount: 0
+            }));
+          }
+        } else if (isDoctor) {
           const { data: assignedPatients, error: dpErr } = await supabase
             .from("doctor_patient")
             .select("patient_id")
@@ -136,16 +149,10 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, isDoctor, todayISO]);
+  }, [currentUser?.id, isAdmin, isDoctor, todayISO]);
 
   if (loading) {
-    return (
-      <div className="dashboard-page">
-        <div className="dashboard-container">
-          <div className="loading-spinner">Loading dashboard...</div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="Dashboard" message="Loading your dashboard..." />;
   }
 
   async function handleDeleteAccount() {
@@ -175,7 +182,7 @@ export default function Dashboard() {
             {t("dashboard.welcome", { name: profile?.full_name || "User" })}
           </h1>
           <p className="dashboard-subtitle">
-            {isDoctor ? t("dashboard.doctorSubtitle") : t("dashboard.patientSubtitle")}
+            {isAdmin ? "Hospital Admin Portal" : isDoctor ? t("dashboard.doctorSubtitle") : t("dashboard.patientSubtitle")}
           </p>
           <p className="dashboard-welcome">
             {new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
@@ -194,7 +201,45 @@ export default function Dashboard() {
         />
 
         <div className="stats-grid">
-          {isDoctor ? (
+          {isAdmin ? (
+            <>
+              <div className="stat-card">
+                <div className="stat-card-content">
+                  <div className="stat-info">
+                    <p className="stat-label">Admin Scope</p>
+                    <h3 className="stat-value">No Patient PHI</h3>
+                  </div>
+                  <div className="stat-icon-wrapper from-teal-500">
+                    <Shield className="stat-icon" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-card-content">
+                  <div className="stat-info">
+                    <p className="stat-label">Doctor Profiles</p>
+                    <h3 className="stat-value">Review</h3>
+                  </div>
+                  <div className="stat-icon-wrapper from-purple-500">
+                    <ClipboardCheck className="stat-icon" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-card-content">
+                  <div className="stat-info">
+                    <p className="stat-label">Access Level</p>
+                    <h3 className="stat-value">Admin</h3>
+                  </div>
+                  <div className="stat-icon-wrapper from-blue-500">
+                    <BadgeCheck className="stat-icon" />
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : isDoctor ? (
             <>
               <div className="stat-card">
                 <div className="stat-card-content">
@@ -300,7 +345,18 @@ export default function Dashboard() {
         <div className="quick-actions-card">
           <h2 className="quick-actions-title">{t("dashboard.quickActions")}</h2>
           <div className="quick-actions-grid">
-            {isDoctor ? (
+            {isAdmin ? (
+              <>
+                <Link to="/admin/doctor-verification" className="quick-action-btn btn-teal">
+                  <ClipboardCheck className="quick-action-icon" />
+                  Review Doctor Profiles
+                </Link>
+                <Link to="/awareness-hub" className="quick-action-btn btn-blue">
+                  <BookOpen className="quick-action-icon" />
+                  Public Health Resources
+                </Link>
+              </>
+            ) : isDoctor ? (
               <>
                 <Link to="/patients" className="quick-action-btn btn-teal">
                   <Users className="quick-action-icon" />
@@ -352,6 +408,8 @@ export default function Dashboard() {
           <p>
             {isDoctor
               ? `You have access to ${stats.patientCount} patients assigned to you. Patient data is protected.`
+              : isAdmin
+              ? "Admins can verify doctor credentials and manage operational trust, but cannot browse patient medical records in this portal."
               : "Your health information is protected and secure. Only authorized providers can access it."}
           </p>
         </div>

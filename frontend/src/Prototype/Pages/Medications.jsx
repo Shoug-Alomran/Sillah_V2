@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 export default function Medications() {
   const { currentUser, profile, isDoctor } = useAuth();
@@ -430,20 +431,7 @@ export default function Medications() {
   }
 
   if (loading) {
-    return (
-      <div className="medications-page">
-        <div className="medications-container">
-          {renderMedicationHeader(false)}
-          <div className="empty-state medications-status-card">
-            <Pill className="empty-icon medications-status-icon" />
-            <p className="empty-title">Loading medications...</p>
-            <p className="empty-text">
-              We are checking the patient-doctor medication records.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="Medications" message="Checking patient-doctor medication records..." />;
   }
 
   if (pageError) {

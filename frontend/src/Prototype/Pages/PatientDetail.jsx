@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 const EMPTY_DIAGNOSIS_REPORT = {
   diagnosis: "",
@@ -297,13 +298,7 @@ export default function PatientDetail() {
   }
 
   if (loading) {
-    return (
-      <div className="patients-page">
-        <div className="patients-container">
-          <div className="empty-message">Loading patient data...</div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="Patient Details" message="Loading patient data..." />;
   }
 
   if (error || !patient) {

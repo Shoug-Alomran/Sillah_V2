@@ -3,6 +3,7 @@ import { AlertTriangle, Heart, Users, Info, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 const CLOSE_RELATIONSHIPS = new Set(["father", "mother", "brother", "sister", "son", "daughter"]);
 const MODERATE_RELATIONSHIPS = new Set(["grandfather", "grandmother", "uncle", "aunt", "cousin"]);
@@ -221,24 +222,7 @@ export default function RiskAssessment() {
   }, [riskSummary.severity]);
 
   if (loading) {
-    return (
-      <div className="risk-assessment-page">
-        <div className="risk-assessment-container">
-          <div className="risk-assessment-header">
-            <h1 className="risk-assessment-title">
-              <Heart className="title-icon" />
-              Risk Assessment
-            </h1>
-            <p className="risk-assessment-subtitle">Hereditary health risk analysis</p>
-          </div>
-          <div className="empty-state">
-            <Heart className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
-            <p className="empty-title">Analyzing Family Health Data...</p>
-            <p className="empty-text">Please wait while we calculate your hereditary risk assessment.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="Risk Assessment" message="Analyzing family health data..." />;
   }
 
   if (error) {

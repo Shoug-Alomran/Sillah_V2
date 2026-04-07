@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCircle, AlertTriangle, Info, ExternalLink } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 export default function Alerts() {
   const { currentUser, isPatient } = useAuth();
@@ -131,26 +132,7 @@ export default function Alerts() {
   }, [alerts, filter]);
 
   if (loading) {
-    return (
-      <div className="alerts-page">
-        <div className="alerts-container">
-          <div className="alerts-header">
-            <div>
-              <h1 className="alerts-title">
-                <Bell className="title-icon" />
-                Medical Alerts
-              </h1>
-              <p className="alerts-subtitle">Loading alerts...</p>
-            </div>
-          </div>
-          <div className="empty-state">
-            <Bell className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
-            <p className="empty-title">Loading Medical Alerts</p>
-            <p className="empty-text">We are checking your health reminders.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="Medical Alerts" message="Checking your health reminders..." />;
   }
 
   if (error) {

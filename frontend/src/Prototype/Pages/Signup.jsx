@@ -10,7 +10,6 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import { supabase } from "../../lib/supabaseClient";
 import { useLanguage } from "../../contexts/LanguageContext";
 import LanguageToggle from "../../Components/LanguageToggle";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
@@ -95,14 +94,10 @@ export default function Signup() {
 
       try {
         setLoadingDoctors(true);
-        const { data, error: fetchError } = await supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .eq("role", "doctor")
-          .order("full_name", { ascending: true });
-
-        if (fetchError) throw fetchError;
-        if (!cancelled) setDoctors(data || []);
+        const response = await fetch("/api/doctor-profiles");
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Unable to load approved doctors.");
+        if (!cancelled) setDoctors(result.doctors || []);
       } catch (fetchErr) {
         console.error("Error fetching doctors:", fetchErr);
         if (!cancelled) setDoctors([]);
@@ -165,6 +160,7 @@ export default function Signup() {
   }
 
   const mustChooseDoctor = userType === "patient" && doctors.length > 0;
+  const selectedDoctorProfile = doctors.find((doctor) => doctor.id === selectedDoctor);
 
   return (
     <div className="auth-page">
@@ -343,13 +339,27 @@ export default function Signup() {
                     <option value="">{t("signup.doctorSelectPlaceholder")}</option>
                     {doctors.map((doctor) => (
                       <option key={doctor.id} value={doctor.id}>
-                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"} - {doctor.email}
+                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"}
+                        {doctor.specialty ? ` - ${doctor.specialty}` : ""}
                       </option>
                     ))}
                   </select>
                 )}
                 {fieldErrors.selectedDoctor && (
                   <p className="inline-field-error">{fieldErrors.selectedDoctor}</p>
+                )}
+                {selectedDoctorProfile && (
+                  <div className="doctor-choice-preview">
+                    <strong>{selectedDoctorProfile.full_name || "Doctor"}</strong>
+                    <p>{selectedDoctorProfile.specialty || "Specialty not listed"}</p>
+                    {selectedDoctorProfile.education && (
+                      <p><span>Education:</span> {selectedDoctorProfile.education}</p>
+                    )}
+                    {selectedDoctorProfile.certifications && (
+                      <p><span>Certificates:</span> {selectedDoctorProfile.certifications}</p>
+                    )}
+                    {selectedDoctorProfile.bio && <p>{selectedDoctorProfile.bio}</p>}
+                  </div>
                 )}
               </div>
             )}

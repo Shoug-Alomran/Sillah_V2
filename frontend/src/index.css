@@ -255,7 +255,15 @@ body {
   display: grid;
   place-items: center;
   padding: 2rem;
-  background: linear-gradient(135deg, #e0f7f4 0%, #cffafe 55%, #dbeafe 100%);
+  background-color: #e0f7f4;
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.18), transparent 28rem),
+    radial-gradient(circle at 85% 20%, rgba(59, 130, 246, 0.14), transparent 26rem),
+    linear-gradient(135deg, #e0f7f4 0%, #cffafe 55%, #dbeafe 100%);
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
+  clear: both;
 }
 
 .app-loading-card {
@@ -267,6 +275,8 @@ body {
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
   text-align: center;
   animation: fadeInUp 0.45s ease-out;
+  position: relative;
+  z-index: 1;
 }
 
 .app-loading-icon {
@@ -296,6 +306,23 @@ body {
 .app-loading-card p {
   color: #6b7280;
   font-size: 1rem;
+}
+
+.app-loading-bar {
+  height: 0.45rem;
+  margin-top: 1.5rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #e5e7eb;
+}
+
+.app-loading-bar span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #14b8a6, #06b6d4);
+  animation: loadingBar 1.25s ease-in-out infinite;
 }
 
 /* ===== FOOTER ===== */
@@ -631,6 +658,17 @@ body {
   }
 }
 
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes scaleIn {
   from {
     opacity: 0;
@@ -648,6 +686,18 @@ body {
   }
   50% {
     opacity: 0.5;
+  }
+}
+
+@keyframes loadingBar {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(70%);
+  }
+  100% {
+    transform: translateX(240%);
   }
 }
 
@@ -3101,6 +3151,401 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   gap: 1rem;
 }
 
+.second-opinion-panel {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  border-left: 5px solid #14b8a6;
+  animation: fadeInUp 0.5s ease-out 0.1s backwards;
+}
+
+.second-opinion-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.second-opinion-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  color: #111827;
+  font-size: 1.35rem;
+}
+
+.second-opinion-panel-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #14b8a6;
+}
+
+.second-opinion-panel-subtitle {
+  margin: 0.35rem 0 0 0;
+  color: #6b7280;
+}
+
+.second-opinion-count-badge,
+.second-opinion-status,
+.second-opinion-mini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.second-opinion-count-badge {
+  padding: 0.45rem 0.8rem;
+  color: #0f766e;
+  background: #ccfbf1;
+  white-space: nowrap;
+}
+
+.second-opinion-request-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.second-opinion-request-card {
+  padding: 1.125rem;
+  border: 1px solid #d1fae5;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, #f8fffe, #f0fdfa);
+}
+
+.second-opinion-request-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.second-opinion-request-top h3 {
+  margin: 0 0 0.25rem 0;
+  color: #111827;
+  font-size: 1.1rem;
+}
+
+.second-opinion-request-top p,
+.second-opinion-report-summary p,
+.second-opinion-note p {
+  margin: 0;
+  color: #6b7280;
+}
+
+.second-opinion-status {
+  height: fit-content;
+  padding: 0.35rem 0.65rem;
+  color: #92400e;
+  background: #fef3c7;
+  text-transform: capitalize;
+}
+
+.second-opinion-status--completed,
+.second-opinion-status--accepted {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.second-opinion-report-summary {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.8rem;
+  background: white;
+  border: 1px solid #ccfbf1;
+  border-radius: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.second-opinion-report-summary svg {
+  color: #14b8a6;
+  flex-shrink: 0;
+}
+
+.second-opinion-note {
+  padding: 0.8rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.second-opinion-note p {
+  margin-top: 0.35rem;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.second-opinion-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.second-opinion-readonly-note {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* ===== DOCTOR PROFILE & ADMIN VERIFICATION ===== */
+.doctor-profile-page,
+.admin-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e0f7f4 0%, #cffafe 50%, #dbeafe 100%);
+  padding: 2rem 1rem;
+}
+
+.doctor-profile-container,
+.admin-container {
+  max-width: 75rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.doctor-profile-header,
+.admin-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  animation: fadeInDown 0.5s ease-out;
+}
+
+.doctor-profile-title,
+.admin-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  color: #111827;
+  font-size: 2rem;
+}
+
+.doctor-profile-subtitle,
+.admin-subtitle {
+  margin: 0.35rem 0 0 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.doctor-profile-card,
+.admin-review-card,
+.admin-privacy-card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+}
+
+.doctor-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.doctor-profile-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #111827;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.doctor-profile-section-title svg {
+  color: #14b8a6;
+}
+
+.doctor-profile-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+  padding: 0.5rem 0.8rem;
+  border-radius: 9999px;
+  color: #92400e;
+  background: #fef3c7;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.doctor-profile-status--approved {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.doctor-profile-status--rejected {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.doctor-profile-status--draft {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.doctor-profile-admin-note,
+.doctor-choice-preview,
+.admin-privacy-card {
+  padding: 1rem;
+  border-radius: 0.85rem;
+}
+
+.doctor-profile-admin-note {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.doctor-profile-admin-note p {
+  margin: 0.35rem 0 0 0;
+}
+
+.doctor-choice-preview {
+  margin-top: 0.75rem;
+  background: linear-gradient(135deg, #f0fdfa, #ecfeff);
+  border: 1px solid #99f6e4;
+  color: #111827;
+}
+
+.doctor-choice-preview p {
+  margin: 0.35rem 0 0 0;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.doctor-choice-preview span {
+  font-weight: 800;
+  color: #0f766e;
+}
+
+.admin-privacy-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  border-left: 5px solid #14b8a6;
+}
+
+.admin-privacy-card svg {
+  flex-shrink: 0;
+  color: #14b8a6;
+}
+
+.admin-privacy-card p {
+  margin: 0.35rem 0 0 0;
+  color: #6b7280;
+  line-height: 1.55;
+}
+
+.admin-filter-tabs {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1rem;
+}
+
+.admin-review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.admin-review-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.admin-review-card-header h2 {
+  margin: 0 0 0.25rem 0;
+  color: #111827;
+  font-size: 1.2rem;
+}
+
+.admin-review-card-header p,
+.admin-review-section p {
+  margin: 0;
+  color: #6b7280;
+}
+
+.admin-review-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.65rem;
+  padding: 0.9rem;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  color: #4b5563;
+}
+
+.admin-review-section {
+  padding: 0.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.admin-review-section p {
+  margin-top: 0.35rem;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.admin-review-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-approve-btn,
+.admin-reject-btn,
+.admin-pending-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: none;
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.9rem;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-approve-btn {
+  background: #10b981;
+}
+
+.admin-reject-btn {
+  background: #ef4444;
+}
+
+.admin-pending-btn {
+  background: #f59e0b;
+}
+
+.admin-approve-btn:disabled,
+.admin-reject-btn:disabled,
+.admin-pending-btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .stat-value-red {
   color: #dc2626;
 }
@@ -4366,6 +4811,12 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   gap: 0.25rem;
 }
 
+.second-opinion-mini-badge {
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: #ecfeff;
+}
+
 .risk-icon-tiny {
   width: 0.75rem;
   height: 0.75rem;
@@ -4435,6 +4886,13 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
 .view-patient-details-btn:hover {
   background: linear-gradient(135deg, #0d9488, #0891b2);
   box-shadow: 0 4px 8px rgba(20, 184, 166, 0.3);
+}
+
+.view-patient-details-btn:disabled {
+  cursor: not-allowed;
+  color: #6b7280;
+  background: #f3f4f6;
+  box-shadow: none;
 }
 
 /* ===== RESPONSIVE DESIGN ===== */

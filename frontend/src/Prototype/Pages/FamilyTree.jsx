@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useLanguage } from "../../contexts/LanguageContext";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 const EMPTY_FORM = {
   full_name: "",
@@ -355,23 +356,7 @@ export default function FamilyTree() {
   }
 
   if (loading) {
-    return (
-      <div className="family-tree-page">
-        <div className="family-tree-container">
-          <header className="family-tree-header">
-            <div>
-              <h1 className="family-tree-title">{t("family.title")}</h1>
-              <p className="family-tree-subtitle">Loading family members...</p>
-            </div>
-          </header>
-          <div className="empty-state">
-            <Users className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
-            <p className="empty-title">Loading Family Tree</p>
-            <p className="empty-text">We are preparing your family health records.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title={t("family.title")} message="Preparing your family health records..." />;
   }
 
   if (error) {

@@ -174,7 +174,8 @@ export function AuthProvider({ children }) {
       logout,
       deleteAccount,
       isDoctor: role === "doctor",
-      isPatient: role === "patient"
+      isPatient: role === "patient",
+      isAdmin: role === "admin"
     };
   }, [currentUser, profile, loading]);
 

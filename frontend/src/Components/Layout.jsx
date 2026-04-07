@@ -13,6 +13,8 @@ import {
   Menu,
   X,
   Pill,
+  ClipboardCheck,
+  BadgeCheck,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -21,7 +23,7 @@ import Tooltip from "./Tooltip";
 import sillahLogo from "../assets/sillah-logo.png";
 
 export default function Layout({ children, currentPageName }) {
-  const { logout, isDoctor, isPatient } = useAuth();
+  const { logout, isDoctor, isPatient, isAdmin } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -49,6 +51,7 @@ export default function Layout({ children, currentPageName }) {
     if (isDoctor) {
       return [
         ...base,
+        { to: "/doctor-profile", key: "DoctorProfile", icon: BadgeCheck, label: "My Profile" },
         { to: "/patients", key: "Patients", icon: Users, label: t("layout.patients") },
         { to: "/medications", key: "Medications", icon: Pill, label: t("layout.medications") },
         { to: "/appointments", key: "Appointments", icon: Calendar, label: t("layout.appointments") },
@@ -57,8 +60,15 @@ export default function Layout({ children, currentPageName }) {
       ];
     }
 
+    if (isAdmin) {
+      return [
+        ...base,
+        { to: "/admin/doctor-verification", key: "AdminDoctorVerification", icon: ClipboardCheck, label: "Doctor Verification" },
+      ];
+    }
+
     return base;
-  }, [isDoctor, isPatient, t]);
+  }, [isAdmin, isDoctor, isPatient, t]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -165,7 +175,7 @@ export default function Layout({ children, currentPageName }) {
               care solutions.
             </p>
             <p className="footer-note">
-              {isDoctor ? "Healthcare Provider Portal" : "Patient Portal"}
+              {isAdmin ? "Admin Portal" : isDoctor ? "Healthcare Provider Portal" : "Patient Portal"}
             </p>
           </div>
 

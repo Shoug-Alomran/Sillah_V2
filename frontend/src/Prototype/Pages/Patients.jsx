@@ -1,15 +1,18 @@
 // frontend/src/Prototype/Pages/Patients.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, Filter, Users, AlertTriangle, TrendingUp } from "lucide-react";
+import { Search, Filter, Users, AlertTriangle, TrendingUp, FileText, Stethoscope } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 export default function Patients() {
   const navigate = useNavigate();
   const { currentUser, isDoctor } = useAuth();
 
   const [patients, setPatients] = useState([]);
+  const [secondOpinionRequests, setSecondOpinionRequests] = useState([]);
+  const [secondOpinionError, setSecondOpinionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -44,12 +47,40 @@ export default function Patients() {
 
         if (assignErr) throw assignErr;
 
-        if (!assignments || assignments.length === 0) {
+        let incomingRequests = [];
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData?.session?.access_token;
+          if (!accessToken) throw new Error("Your session has expired. Please log in again.");
+
+          const response = await fetch("/api/second-opinion-requests", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.error || "Unable to load second opinion requests.");
+          incomingRequests = result.requests || [];
+          if (!cancelled) {
+            setSecondOpinionRequests(incomingRequests);
+            setSecondOpinionError("");
+          }
+        } catch (requestError) {
+          console.error("Error fetching second opinion requests:", requestError);
+          if (!cancelled) {
+            setSecondOpinionRequests([]);
+            setSecondOpinionError(requestError?.message || "Unable to load second opinion requests.");
+          }
+        }
+
+        const assignedPatientIds = new Set((assignments || []).map((a) => a.patient_id));
+        const requestPatientIds = incomingRequests.map((request) => request.patient_id).filter(Boolean);
+        const patientIds = [...new Set([...assignedPatientIds, ...requestPatientIds])];
+
+        if (patientIds.length === 0) {
           if (!cancelled) setPatients([]);
           return;
         }
-
-        const patientIds = assignments.map((a) => a.patient_id);
 
         // 2) Fetch patient profiles
         const { data: profiles, error: profErr } = await supabase
@@ -60,11 +91,20 @@ export default function Patients() {
 
         if (profErr) throw profErr;
 
+        const requestProfiles = incomingRequests
+          .map((request) => request.patient)
+          .filter(Boolean);
+        const profilesById = new Map([
+          ...requestProfiles.map((profile) => [profile.id, profile]),
+          ...(profiles || []).map((profile) => [profile.id, profile]),
+        ]);
+
         // 3) Attach placeholder fields you were using in UI
-        const patientsData = (profiles || []).map((p) => ({
+        const patientsData = [...profilesById.values()].map((p) => ({
           ...p,
           family_members_count: 0, // (optional: replace later when you add a family_members table)
-          risk_level: "none"       // (optional: replace later when you add risk assessments)
+          risk_level: "none",       // (optional: replace later when you add risk assessments)
+          is_second_opinion_only: !assignedPatientIds.has(p.id)
         }));
 
         if (!cancelled) setPatients(patientsData);
@@ -107,21 +147,26 @@ export default function Patients() {
     (sum, p) => sum + (p.family_members_count || 0),
     0
   );
+  const pendingSecondOpinionCount = secondOpinionRequests.filter(
+    (request) => (request.status || "pending").toLowerCase() === "pending"
+  ).length;
+
+  const formatRequestDate = (dateValue) => {
+    if (!dateValue) return "Date unknown";
+    return new Intl.DateTimeFormat("en", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(dateValue));
+  };
+
+  const isAssignedPatient = (patientId) => {
+    const patient = patients.find((item) => item.id === patientId);
+    return Boolean(patient && !patient.is_second_opinion_only);
+  };
 
   if (loading) {
-    return (
-      <div className="patients-page">
-        <div className="patients-container">
-          <header className="patients-header">
-            <h1 className="patients-title">
-              <Users className="title-icon" />
-              My Patients
-            </h1>
-            <p className="patients-subtitle">Loading patient information...</p>
-          </header>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="My Patients" message="Loading patient information..." />;
   }
 
   if (error) {
@@ -183,6 +228,95 @@ export default function Patients() {
             Managing {totalPatients} patient{totalPatients !== 1 ? "s" : ""}
           </p>
         </header>
+
+        {(secondOpinionRequests.length > 0 || secondOpinionError) && (
+          <section className="second-opinion-panel">
+            <div className="second-opinion-panel-header">
+              <div>
+                <h2 className="second-opinion-panel-title">
+                  <Stethoscope className="second-opinion-panel-icon" />
+                  Second Opinion Requests
+                </h2>
+                <p className="second-opinion-panel-subtitle">
+                  Patients who specifically requested your review.
+                </p>
+              </div>
+              <span className="second-opinion-count-badge">
+                {pendingSecondOpinionCount} pending
+              </span>
+            </div>
+
+            {secondOpinionError ? (
+              <div className="diagnosis-feedback diagnosis-feedback--error">
+                <AlertTriangle size={18} />
+                <span>{secondOpinionError}</span>
+              </div>
+            ) : (
+              <div className="second-opinion-request-list">
+                {secondOpinionRequests.map((request) => {
+                  const patient = request.patient || {};
+                  const report = request.medical_history || {};
+                  const patientIsAssigned = isAssignedPatient(request.patient_id);
+
+                  return (
+                    <article key={request.id} className="second-opinion-request-card">
+                      <div className="second-opinion-request-top">
+                        <div>
+                          <h3>{patient.full_name || patient.email || "Patient"}</h3>
+                          <p>
+                            Requested {formatRequestDate(request.created_at)}
+                            {patient.email ? ` • ${patient.email}` : ""}
+                          </p>
+                        </div>
+                        <span className={`second-opinion-status second-opinion-status--${request.status || "pending"}`}>
+                          {request.status || "pending"}
+                        </span>
+                      </div>
+
+                      <div className="second-opinion-report-summary">
+                        <FileText size={18} />
+                        <div>
+                          <strong>{report.condition_name || "Diagnosis report"}</strong>
+                          <p>{formatRequestDate(report.diagnosis_date || report.created_at)}</p>
+                        </div>
+                      </div>
+
+                      {request.message && (
+                        <div className="second-opinion-note">
+                          <strong>Patient message:</strong>
+                          <p>{request.message}</p>
+                        </div>
+                      )}
+
+                      {report.notes && (
+                        <div className="second-opinion-note">
+                          <strong>Doctor report:</strong>
+                          <p>{report.notes}</p>
+                        </div>
+                      )}
+
+                      <div className="second-opinion-actions">
+                        {patientIsAssigned ? (
+                          <button
+                            type="button"
+                            className="view-patient-details-btn"
+                            onClick={() => navigate(`/patients/${request.patient_id}`)}
+                          >
+                            Open Patient Chart
+                          </button>
+                        ) : (
+                          <span className="second-opinion-readonly-note">
+                            Request-only access. Patient is not assigned to you yet.
+                          </span>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="search-filter-card">
           <div className="search-input-wrapper">
@@ -291,6 +425,12 @@ export default function Patients() {
                       {patient.risk_level}
                     </span>
                   )}
+                  {patient.is_second_opinion_only && (
+                    <span className="patient-risk-badge-component second-opinion-mini-badge">
+                      <Stethoscope className="risk-icon-tiny" />
+                      Second opinion
+                    </span>
+                  )}
                 </div>
 
                 <div className="patient-card-body-component">
@@ -325,11 +465,14 @@ export default function Patients() {
 
                   <div className="patient-family-count-section">
                     <button
-                      onClick={() => navigate(`/patients/${patient.id}`)}
+                      onClick={() => {
+                        if (!patient.is_second_opinion_only) navigate(`/patients/${patient.id}`);
+                      }}
                       className="view-patient-details-btn"
                       type="button"
+                      disabled={patient.is_second_opinion_only}
                     >
-                      View Details
+                      {patient.is_second_opinion_only ? "See Request Above" : "View Details"}
                     </button>
                   </div>
                 </div>

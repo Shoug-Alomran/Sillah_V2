@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Heart, Plus, Calendar, Edit, Trash2, AlertTriangle, FileText, Stethoscope } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 const CONDITION_OPTIONS = [
   "Sickle Cell Disease",
@@ -135,18 +136,15 @@ export default function MyHealth() {
     async function fetchDoctors() {
       if (!currentUser?.id || !isPatient) return;
 
-      const { data, error: doctorsError } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .eq("role", "doctor")
-        .order("full_name", { ascending: true });
-
-      if (doctorsError) {
+      try {
+        const response = await fetch("/api/doctor-profiles");
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Unable to load approved doctors.");
+        if (!cancelled) setDoctors(result.doctors || []);
+      } catch (doctorsError) {
         console.error("Error loading doctors:", doctorsError);
-        return;
+        if (!cancelled) setDoctors([]);
       }
-
-      if (!cancelled) setDoctors(data || []);
     }
 
     fetchDoctors();
@@ -287,6 +285,10 @@ export default function MyHealth() {
   };
 
   const profileName = useMemo(() => selfMember?.full_name || profile?.full_name || "You", [selfMember?.full_name, profile?.full_name]);
+  const selectedSecondOpinionDoctorProfile = useMemo(
+    () => doctors.find((doctor) => doctor.id === selectedSecondOpinionDoctor),
+    [doctors, selectedSecondOpinionDoctor]
+  );
 
   function isDoctorReport(record) {
     return String(record?.notes || "").trim().toLowerCase().startsWith("doctor diagnosis report");
@@ -378,26 +380,7 @@ export default function MyHealth() {
   }
 
   if (loading) {
-    return (
-      <div className="my-health-page">
-        <div className="my-health-container">
-          <header className="my-health-header">
-            <div>
-              <h1 className="my-health-title">
-                <Heart className="title-icon" />
-                My Health Records
-              </h1>
-              <p className="my-health-subtitle">Loading your health records...</p>
-            </div>
-          </header>
-          <div className="empty-state">
-            <Heart className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
-            <p className="empty-title">Loading Health Records</p>
-            <p className="empty-text">We are checking your personal and doctor-written records.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen title="My Health Records" message="Checking your personal and doctor-written records..." />;
   }
 
   if (error) {
@@ -646,12 +629,26 @@ export default function MyHealth() {
                     <option value="">Select a doctor</option>
                     {doctors.map((doctor) => (
                       <option key={doctor.id} value={doctor.id}>
-                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"} - {doctor.email}
+                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"}
+                        {doctor.specialty ? ` - ${doctor.specialty}` : ""}
                       </option>
                     ))}
                   </select>
                   {doctors.length === 0 && (
-                    <p className="inline-field-error">No doctors are available yet.</p>
+                    <p className="inline-field-error">No approved doctors are available yet.</p>
+                  )}
+                  {selectedSecondOpinionDoctorProfile && (
+                    <div className="doctor-choice-preview">
+                      <strong>{selectedSecondOpinionDoctorProfile.full_name || "Doctor"}</strong>
+                      <p>{selectedSecondOpinionDoctorProfile.specialty || "Specialty not listed"}</p>
+                      {selectedSecondOpinionDoctorProfile.education && (
+                        <p><span>Education:</span> {selectedSecondOpinionDoctorProfile.education}</p>
+                      )}
+                      {selectedSecondOpinionDoctorProfile.certifications && (
+                        <p><span>Certificates:</span> {selectedSecondOpinionDoctorProfile.certifications}</p>
+                      )}
+                      {selectedSecondOpinionDoctorProfile.bio && <p>{selectedSecondOpinionDoctorProfile.bio}</p>}
+                    </div>
                   )}
                 </div>
 

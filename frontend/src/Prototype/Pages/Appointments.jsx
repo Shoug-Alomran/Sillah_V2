@@ -18,6 +18,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useLanguage } from "../../contexts/LanguageContext";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
+import AppLoadingScreen from "../../Components/AppLoadingScreen";
 
 function toAppointmentTimestamp(dateStr, timeStr) {
   if (!dateStr) return null;
@@ -548,17 +549,10 @@ export default function Appointments() {
 
   if (loading) {
     return (
-      <div className="appointments-page">
-        <div className="appointments-container">
-          <header className="appointments-header">
-            <h1 className="appointments-title">
-              <Calendar className="title-icon" />
-              {isDoctor ? t("appointments.titleDoctor") : t("appointments.titlePatient")}
-            </h1>
-            <p className="appointments-subtitle">{t("appointments.loading")}</p>
-          </header>
-        </div>
-      </div>
+      <AppLoadingScreen
+        title={isDoctor ? t("appointments.titleDoctor") : t("appointments.titlePatient")}
+        message={t("appointments.loading")}
+      />
     );
   }
 
