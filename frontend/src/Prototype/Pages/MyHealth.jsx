@@ -381,8 +381,20 @@ export default function MyHealth() {
     return (
       <div className="my-health-page">
         <div className="my-health-container">
-          <h1 className="my-health-title">My Health Records</h1>
-          <p>Loading your health records...</p>
+          <header className="my-health-header">
+            <div>
+              <h1 className="my-health-title">
+                <Heart className="title-icon" />
+                My Health Records
+              </h1>
+              <p className="my-health-subtitle">Loading your health records...</p>
+            </div>
+          </header>
+          <div className="empty-state">
+            <Heart className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
+            <p className="empty-title">Loading Health Records</p>
+            <p className="empty-text">We are checking your personal and doctor-written records.</p>
+          </div>
         </div>
       </div>
     );

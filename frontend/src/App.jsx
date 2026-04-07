@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import Layout from "./Components/Layout.jsx";
+import AppLoadingScreen from "./Components/AppLoadingScreen.jsx";
 import { useAuth } from "./contexts/AuthContext";
 
 import Login from "./Prototype/Pages/Login.jsx";
@@ -38,17 +39,13 @@ function Shell({ pageName, children }) {
 }
 
 function RouteFallback() {
-  return (
-    <div style={{ minHeight: "40vh", display: "grid", placeItems: "center", color: "#6b7280" }}>
-      Loading...
-    </div>
-  );
+  return <AppLoadingScreen message="Loading this page..." />;
 }
 
 function RoleRoute({ allow, children }) {
   const { loading, isDoctor, isPatient } = useAuth();
 
-  if (loading) return null;
+  if (loading) return <AppLoadingScreen />;
 
   if (allow === "doctor" && !isDoctor) return <Navigate to="/dashboard" replace />;
   if (allow === "patient" && !isPatient) return <Navigate to="/dashboard" replace />;

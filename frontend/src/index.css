@@ -172,6 +172,29 @@ body {
   color: #dc2626;
 }
 
+.nav-link--logout {
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  background: #fff7f7;
+  white-space: nowrap;
+}
+
+.nav-link--logout:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.nav-link--logout:focus-visible {
+  outline: 3px solid rgba(239, 68, 68, 0.18);
+  outline-offset: 2px;
+}
+
+.nav-link--logout:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
 .nav-link-icon {
   width: 1.125rem;
   height: 1.125rem;
@@ -219,6 +242,60 @@ body {
   width: 100%;
   justify-content: flex-start;
   text-align: left;
+}
+
+.nav-link--mobile.nav-link--logout,
+.nav-link--mobile.nav-link--ghost {
+  justify-content: flex-start;
+}
+
+/* ===== APP LOADING ===== */
+.app-loading-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #e0f7f4 0%, #cffafe 55%, #dbeafe 100%);
+}
+
+.app-loading-card {
+  width: min(100%, 26rem);
+  padding: 2.5rem;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+  text-align: center;
+  animation: fadeInUp 0.45s ease-out;
+}
+
+.app-loading-icon {
+  width: 4rem;
+  height: 4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  border-radius: 1.25rem;
+  color: white;
+  background: linear-gradient(135deg, #14b8a6, #0891b2);
+  box-shadow: 0 14px 28px rgba(20, 184, 166, 0.25);
+}
+
+.app-loading-icon svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.app-loading-card h1 {
+  margin-bottom: 0.35rem;
+  color: #111827;
+  font-size: 2rem;
+}
+
+.app-loading-card p {
+  color: #6b7280;
+  font-size: 1rem;
 }
 
 /* ===== FOOTER ===== */
@@ -3351,11 +3428,13 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   height: 3rem;
 }
 
-.recommendations-card {
+.recommendations-card,
+.risk-recommendations-card {
   background: white;
   border-radius: 1rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  animation: scaleIn 0.5s ease-out 0.2s backwards;
 }
 
 .recommendations-title {
@@ -3365,13 +3444,24 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   margin: 0;
   padding: 1.5rem;
   border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.recommendations-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #14b8a6;
 }
 
 .recommendations-list {
   padding: 1.5rem;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  list-style: none;
 }
 
 .recommendation-item {

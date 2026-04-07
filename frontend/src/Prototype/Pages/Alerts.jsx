@@ -134,11 +134,20 @@ export default function Alerts() {
     return (
       <div className="alerts-page">
         <div className="alerts-container">
-          <h1 className="alerts-title">
-            <Bell className="title-icon" />
-            Medical Alerts
-          </h1>
-          <p>Loading alerts...</p>
+          <div className="alerts-header">
+            <div>
+              <h1 className="alerts-title">
+                <Bell className="title-icon" />
+                Medical Alerts
+              </h1>
+              <p className="alerts-subtitle">Loading alerts...</p>
+            </div>
+          </div>
+          <div className="empty-state">
+            <Bell className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
+            <p className="empty-title">Loading Medical Alerts</p>
+            <p className="empty-text">We are checking your health reminders.</p>
+          </div>
         </div>
       </div>
     );
@@ -148,15 +157,20 @@ export default function Alerts() {
     return (
       <div className="alerts-page">
         <div className="alerts-container">
-          <h1 className="alerts-title">
-            <Bell className="title-icon" />
-            Alerts & Reminders
-          </h1>
-          <div className="error-state">
-            <AlertTriangle className="error-icon" />
-            <p className="error-title">{error}</p>
-            <p className="error-text">Please check your connection or try again later.</p>
-            <button onClick={() => window.location.reload()} className="retry-btn">
+          <div className="alerts-header">
+            <div>
+              <h1 className="alerts-title">
+                <Bell className="title-icon" />
+                Alerts & Reminders
+              </h1>
+              <p className="alerts-subtitle">Unable to load alerts</p>
+            </div>
+          </div>
+          <div className="empty-state">
+            <AlertTriangle className="empty-icon" style={{ color: "#ef4444" }} />
+            <p className="empty-title">{error}</p>
+            <p className="empty-text">Please check your connection or try again later.</p>
+            <button onClick={() => window.location.reload()} className="empty-action-btn">
               Try Again
             </button>
           </div>

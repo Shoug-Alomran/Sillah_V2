@@ -358,8 +358,17 @@ export default function FamilyTree() {
     return (
       <div className="family-tree-page">
         <div className="family-tree-container">
-          <h1 className="family-tree-title">{t("family.title")}</h1>
-          <p>Loading family members...</p>
+          <header className="family-tree-header">
+            <div>
+              <h1 className="family-tree-title">{t("family.title")}</h1>
+              <p className="family-tree-subtitle">Loading family members...</p>
+            </div>
+          </header>
+          <div className="empty-state">
+            <Users className="empty-icon" style={{ animation: "pulse 2s infinite" }} />
+            <p className="empty-title">Loading Family Tree</p>
+            <p className="empty-text">We are preparing your family health records.</p>
+          </div>
         </div>
       </div>
     );

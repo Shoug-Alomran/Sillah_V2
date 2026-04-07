@@ -114,7 +114,8 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: "global" });
+    if (error) throw error;
     setCurrentUser(null);
     setProfile(null);
   }

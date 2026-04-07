@@ -25,6 +25,7 @@ export default function Layout({ children, currentPageName }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const navLinks = useMemo(() => {
     const base = [
@@ -60,11 +61,16 @@ export default function Layout({ children, currentPageName }) {
   }, [isDoctor, isPatient, t]);
 
   const handleLogout = async () => {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
     try {
       await logout();
-      navigate("/login");
+      setMobileMenuOpen(false);
+      navigate("/login", { replace: true });
     } catch (error) {
-      alert("Failed to logout");
+      setLoggingOut(false);
+      alert(error?.message || "Failed to logout");
     }
   };
 
@@ -104,12 +110,15 @@ export default function Layout({ children, currentPageName }) {
           <div className="nav-links nav-links--desktop">
             {navLinks.map((item) => renderLink(item))}
             <LanguageToggle />
-            <Tooltip content={t("layout.logout")}>
-              <button className="nav-link nav-link--ghost" onClick={handleLogout}>
-                <LogOut className="nav-link-icon" />
-                {t("layout.logout")}
-              </button>
-            </Tooltip>
+            <button
+              className="nav-link nav-link--logout"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              type="button"
+            >
+              <LogOut className="nav-link-icon" />
+              {loggingOut ? "Logging out..." : t("layout.logout")}
+            </button>
           </div>
 
           <div className="top-nav-actions">
@@ -130,11 +139,13 @@ export default function Layout({ children, currentPageName }) {
           <div className="nav-links nav-links--mobile">
             {navLinks.map((item) => renderLink(item, true))}
             <button
-              className="nav-link nav-link--mobile nav-link--ghost"
+              className="nav-link nav-link--mobile nav-link--logout"
               onClick={handleLogout}
+              disabled={loggingOut}
+              type="button"
             >
               <LogOut className="nav-link-icon" />
-              {t("layout.logout")}
+              {loggingOut ? "Logging out..." : t("layout.logout")}
             </button>
           </div>
         )}
