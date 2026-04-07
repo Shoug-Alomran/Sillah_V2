@@ -499,6 +499,12 @@ export default function Signup() {
                 {t("signup.login")}
               </Link>
             </p>
+            <p>
+              Already created the admin account?{" "}
+              <Link to="/claim-admin" className="auth-link">
+                Activate admin access
+              </Link>
+            </p>
           </div>
         </div>
       </div>

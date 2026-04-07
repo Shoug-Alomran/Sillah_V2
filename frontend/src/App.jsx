@@ -9,6 +9,7 @@ import { useAuth } from "./contexts/AuthContext";
 
 import Login from "./Prototype/Pages/Login.jsx";
 import Signup from "./Prototype/Pages/Signup.jsx";
+import AdminClaim from "./Prototype/Pages/AdminClaim.jsx";
 const Dashboard = lazy(() => import("./Prototype/Pages/Dashboard.jsx"));
 const MyHealth = lazy(() => import("./Prototype/Pages/MyHealth.jsx"));
 const Alerts = lazy(() => import("./Prototype/Pages/Alerts.jsx"));
@@ -70,6 +71,14 @@ export default function App() {
           {/* Public */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/claim-admin"
+            element={
+              <ProtectedRoute>
+                <AdminClaim />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Phase 5 demo (your choice: public or protected) */}
           <Route path="/phase5-demo" element={<Phase5Demo />} />
