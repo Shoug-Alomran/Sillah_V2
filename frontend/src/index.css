@@ -6073,6 +6073,47 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   font-size: 0.9rem;
 }
 
+.diagnosis-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  margin-top: 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+}
+
+.diagnosis-feedback svg {
+  flex-shrink: 0;
+}
+
+.diagnosis-feedback span {
+  flex: 1;
+}
+
+.diagnosis-feedback button {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.75);
+  color: inherit;
+  font-weight: 700;
+}
+
+.diagnosis-feedback--success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.diagnosis-feedback--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
 .patient-id-copy-box {
   display: flex;
   align-items: center;

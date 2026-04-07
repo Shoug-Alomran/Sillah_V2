@@ -29,6 +29,7 @@ export default function PatientDetail() {
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
   const [diagnosisReport, setDiagnosisReport] = useState(EMPTY_DIAGNOSIS_REPORT);
   const [savingDiagnosis, setSavingDiagnosis] = useState(false);
+  const [diagnosisFeedback, setDiagnosisFeedback] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,7 +168,29 @@ export default function PatientDetail() {
     setDiagnosisReport(EMPTY_DIAGNOSIS_REPORT);
   }
 
-  async function ensurePatientSelfMember() {
+  function openDiagnosisModal() {
+    setDiagnosisFeedback(null);
+    setShowDiagnosisModal(true);
+  }
+
+  function buildDiagnosisReportNotes() {
+    const sections = [
+      ["Symptoms / Concerns", diagnosisReport.symptoms],
+      ["Clinical Assessment", diagnosisReport.assessment],
+      ["Treatment Plan", diagnosisReport.treatment_plan],
+      ["Follow-up Instructions", diagnosisReport.follow_up],
+      ["Recorded By", currentUser?.email || "Assigned doctor"]
+    ];
+
+    const body = sections
+      .filter(([, value]) => String(value || "").trim() !== "")
+      .map(([label, value]) => `${label}:\n${String(value).trim()}`)
+      .join("\n\n");
+
+    return `Doctor Diagnosis Report${body ? `\n\n${body}` : ""}`;
+  }
+
+  async function ensurePatientSelfMemberDirect() {
     const existingSelf = familyMembers.find(
       (member) => String(member.relationship || "").trim().toLowerCase() === "self"
     );
@@ -190,21 +213,22 @@ export default function PatientDetail() {
     return data;
   }
 
-  function buildDiagnosisReportNotes() {
-    const sections = [
-      ["Symptoms / Concerns", diagnosisReport.symptoms],
-      ["Clinical Assessment", diagnosisReport.assessment],
-      ["Treatment Plan", diagnosisReport.treatment_plan],
-      ["Follow-up Instructions", diagnosisReport.follow_up],
-      ["Recorded By", currentUser?.email || "Assigned doctor"]
-    ];
+  async function saveDiagnosisReportDirect(diagnosisName) {
+    const selfMember = await ensurePatientSelfMemberDirect();
 
-    const body = sections
-      .filter(([, value]) => value !== "")
-      .map(([label, value]) => (value ? `${label}:\n${value.trim()}` : label))
-      .join("\n\n");
+    const { data, error: insertError } = await supabase
+      .from("medical_history")
+      .insert({
+        family_member_id: selfMember.id,
+        condition_name: diagnosisName,
+        diagnosis_date: diagnosisReport.diagnosis_date || todayISO,
+        notes: buildDiagnosisReportNotes()
+      })
+      .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
+      .single();
 
-    return `Doctor Diagnosis Report${body ? `\n\n${body}` : ""}`;
+    if (insertError) throw insertError;
+    return { report: data, selfMember };
   }
 
   async function handleSaveDiagnosisReport(event) {
@@ -222,28 +246,51 @@ export default function PatientDetail() {
 
     try {
       setSavingDiagnosis(true);
-      const selfMember = await ensurePatientSelfMember();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error("Your session has expired. Please log in again.");
 
-      const payload = {
-        family_member_id: selfMember.id,
-        condition_name: diagnosisName,
-        diagnosis_date: diagnosisReport.diagnosis_date || todayISO,
-        notes: buildDiagnosisReportNotes()
-      };
+      const response = await fetch("/api/diagnosis-reports", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          patientId,
+          diagnosis: diagnosisName,
+          diagnosisDate: diagnosisReport.diagnosis_date || todayISO,
+          symptoms: diagnosisReport.symptoms,
+          assessment: diagnosisReport.assessment,
+          treatmentPlan: diagnosisReport.treatment_plan,
+          followUp: diagnosisReport.follow_up,
+        }),
+      });
 
-      const { data, error: insertError } = await supabase
-        .from("medical_history")
-        .insert(payload)
-        .select("id, family_member_id, condition_name, diagnosis_date, notes, created_at")
-        .single();
+      let result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.warn("Diagnosis report API failed; trying Supabase RLS fallback.", result.error);
+        result = await saveDiagnosisReportDirect(diagnosisName);
+      }
 
-      if (insertError) throw insertError;
-
-      setMedicalHistory((prev) => [data, ...prev]);
+      if (result.selfMember) {
+        setFamilyMembers((prev) => {
+          if (prev.some((member) => member.id === result.selfMember.id)) return prev;
+          return [result.selfMember, ...prev];
+        });
+      }
+      setMedicalHistory((prev) => [result.report, ...prev]);
+      setDiagnosisFeedback({
+        type: "success",
+        message: "Diagnosis report saved to this patient's medical history."
+      });
       closeDiagnosisModal();
     } catch (saveError) {
       console.error("Error saving diagnosis report:", saveError);
-      alert(saveError?.message || "Failed to save diagnosis report.");
+      setDiagnosisFeedback({
+        type: "error",
+        message: saveError?.message || "Failed to save diagnosis report."
+      });
     } finally {
       setSavingDiagnosis(false);
     }
@@ -326,7 +373,7 @@ export default function PatientDetail() {
             </div>
 
             <button
-              onClick={() => setShowDiagnosisModal(true)}
+              onClick={openDiagnosisModal}
               className="diagnosis-report-btn"
               type="button"
             >
@@ -334,6 +381,20 @@ export default function PatientDetail() {
               Add Diagnosis Report
             </button>
           </div>
+
+          {diagnosisFeedback && (
+            <div className={`diagnosis-feedback diagnosis-feedback--${diagnosisFeedback.type}`}>
+              <FileText size={18} />
+              <span>{diagnosisFeedback.message}</span>
+              <button
+                type="button"
+                onClick={() => setDiagnosisFeedback(null)}
+                aria-label="Dismiss confirmation"
+              >
+                x
+              </button>
+            </div>
+          )}
 
           <div style={{ background: "#dbeafe", border: "1px solid #bfdbfe", borderRadius: "0.5rem", padding: "1rem", marginTop: "1rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>

@@ -70,17 +70,9 @@ export default function Medications() {
         .select("*");
 
       if (viewMode === "patient") {
-        const filters = [
-          `patient_id.eq.${currentUser.id}`,
-          `user_id.eq.${currentUser.id}`,
-          `prescribed_for_patient.eq.${currentUser.id}`,
-        ];
-        if (profile?.patient_code) {
-          filters.push(`prescribed_for_patient.eq.${profile.patient_code}`);
-        }
-        query = query.or(filters.join(","));
+        query = query.eq("patient_id", currentUser.id);
       } else {
-        query = query.or(`doctor_id.eq.${currentUser.id},prescribed_by.eq.${currentUser.id}`);
+        query = query.eq("doctor_id", currentUser.id);
       }
 
       const { data, error } = await query
