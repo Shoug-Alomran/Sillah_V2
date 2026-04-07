@@ -3716,6 +3716,120 @@ body[dir="rtl"] .tooltip:focus-within .tooltip-bubble {
   flex-wrap: wrap;
 }
 
+.admin-audit-panel {
+  gap: 1.25rem;
+}
+
+.admin-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 13rem;
+  padding: 2rem;
+  border: 1px dashed #99f6e4;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #f0fdfa, #eff6ff);
+  color: #475569;
+  text-align: center;
+}
+
+.admin-empty-state svg {
+  color: #14b8a6;
+}
+
+.admin-empty-state strong {
+  color: #111827;
+  font-size: 1.15rem;
+}
+
+.admin-empty-state p {
+  max-width: 42rem;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.admin-audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.admin-audit-item {
+  display: flex;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  background: #f8fafc;
+}
+
+.admin-audit-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.9rem;
+  color: white;
+  background: linear-gradient(135deg, #14b8a6, #06b6d4);
+}
+
+.admin-audit-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-audit-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-audit-heading h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 1rem;
+}
+
+.admin-audit-heading p,
+.admin-audit-heading time {
+  margin: 0.25rem 0 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.admin-audit-heading time {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.admin-audit-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.admin-audit-details span {
+  display: inline-flex;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding: 0.4rem 0.65rem;
+  border-radius: 9999px;
+  background: white;
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.admin-audit-details strong {
+  color: #0f766e;
+  text-transform: capitalize;
+}
+
 .admin-approve-btn,
 .admin-reject-btn,
 .admin-pending-btn {

@@ -44,6 +44,22 @@ function StatusBadge({ status }) {
   return <span className={`admin-status-badge admin-status-badge--${value}`}>{value}</span>;
 }
 
+function formatAuditAction(value) {
+  return String(value || "admin.action")
+    .replaceAll(".", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatAuditDetails(details) {
+  if (!details || typeof details !== "object") return [];
+  return Object.entries(details)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .map(([key, value]) => ({
+      key: key.replaceAll("_", " "),
+      value: typeof value === "object" ? JSON.stringify(value) : String(value),
+    }));
+}
+
 function getAdminErrorMessage(result) {
   const details = [result?.error, result?.code, result?.details, result?.hint].filter(Boolean);
   return details.length > 0 ? details.join(" - ") : "Admin request failed.";
@@ -515,33 +531,53 @@ export default function AdminOperations() {
         )}
 
         {activeTab === "audit" && (
-          <section className="admin-review-card">
+          <section className="admin-review-card admin-audit-panel">
             <div className="admin-section-heading">
               <h2>Administrative Audit Log</h2>
               <p>Tracks admin actions for accountability. It does not store patient medical details.</p>
             </div>
             {auditLogs.length === 0 ? (
-              <p>No admin audit logs yet. Create the admin_audit_logs table to enable persistent logs.</p>
+              <div className="admin-empty-state">
+                <ClipboardList size={34} />
+                <strong>No admin audit logs yet</strong>
+                <p>
+                  Audit entries will appear here after admins update roles, save clinics, publish awareness content, or
+                  delete content.
+                </p>
+              </div>
             ) : (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Action</th>
-                      <th>Target</th>
-                      <th>When</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditLogs.map((log) => (
-                      <tr key={log.id}>
-                        <td>{log.action_type}</td>
-                        <td>{log.target_type}</td>
-                        <td>{formatDate(log.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="admin-audit-list">
+                {auditLogs.map((log) => {
+                  const details = formatAuditDetails(log.details);
+                  return (
+                    <article key={log.id} className="admin-audit-item">
+                      <div className="admin-audit-icon">
+                        <ClipboardList size={20} />
+                      </div>
+                      <div className="admin-audit-content">
+                        <div className="admin-audit-heading">
+                          <div>
+                            <h3>{formatAuditAction(log.action_type)}</h3>
+                            <p>
+                              {log.target_type || "system"}
+                              {log.target_id ? ` - ${log.target_id}` : ""}
+                            </p>
+                          </div>
+                          <time dateTime={log.created_at}>{formatDate(log.created_at)}</time>
+                        </div>
+                        {details.length > 0 && (
+                          <div className="admin-audit-details">
+                            {details.map((detail) => (
+                              <span key={`${log.id}-${detail.key}`}>
+                                <strong>{detail.key}:</strong> {detail.value}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
