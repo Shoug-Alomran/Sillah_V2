@@ -59,6 +59,14 @@ export default async function handler(req, res) {
       .single();
     if (error) throw error;
 
+    const { error: metadataError } = await admin.auth.admin.updateUserById(user.id, {
+      user_metadata: {
+        ...(user.user_metadata || {}),
+        role: "admin",
+      },
+    });
+    if (metadataError) throw metadataError;
+
     return res.status(200).json({ profile });
   } catch (error) {
     console.error("ADMIN_CLAIM_ERROR", error);
