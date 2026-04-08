@@ -83,7 +83,7 @@ export default function Signup() {
     }
 
     if (userType === "admin" && !String(values.adminInviteCode || "").trim()) {
-      errors.adminInviteCode = "Admin invite code is required.";
+      errors.adminInviteCode = t("signup.adminInviteRequired");
     }
 
     return errors;
@@ -156,7 +156,7 @@ export default function Signup() {
 
       if (userType === "admin") {
         const accessToken = session?.access_token;
-        if (!accessToken) throw new Error("Admin signup requires an active session. Please log in and try again.");
+        if (!accessToken) throw new Error(t("signup.adminSessionRequired"));
 
         const response = await fetch("/api/admin/claim", {
           method: "POST",
@@ -257,7 +257,7 @@ export default function Signup() {
                   disabled={loading}
                 >
                   <Shield className="user-type-icon" />
-                  <span>Admin</span>
+                  <span>{t("signup.admin")}</span>
                 </button>
               </div>
             </div>
@@ -373,7 +373,7 @@ export default function Signup() {
                     <option value="">{t("signup.doctorSelectPlaceholder")}</option>
                     {doctors.map((doctor) => (
                       <option key={doctor.id} value={doctor.id}>
-                        {(doctor.full_name && doctor.full_name.trim()) || "Doctor"}
+                        {(doctor.full_name && doctor.full_name.trim()) || t("signup.doctor")}
                         {doctor.specialty ? ` - ${doctor.specialty}` : ""}
                       </option>
                     ))}
@@ -384,13 +384,13 @@ export default function Signup() {
                 )}
                 {selectedDoctorProfile && (
                   <div className="doctor-choice-preview">
-                    <strong>{selectedDoctorProfile.full_name || "Doctor"}</strong>
-                    <p>{selectedDoctorProfile.specialty || "Specialty not listed"}</p>
+                    <strong>{selectedDoctorProfile.full_name || t("signup.doctor")}</strong>
+                    <p>{selectedDoctorProfile.specialty || t("signup.specialtyNotListed")}</p>
                     {selectedDoctorProfile.education && (
-                      <p><span>Education:</span> {selectedDoctorProfile.education}</p>
+                      <p><span>{t("signup.educationLabel")}:</span> {selectedDoctorProfile.education}</p>
                     )}
                     {selectedDoctorProfile.certifications && (
-                      <p><span>Certificates:</span> {selectedDoctorProfile.certifications}</p>
+                      <p><span>{t("signup.certificatesLabel")}:</span> {selectedDoctorProfile.certifications}</p>
                     )}
                     {selectedDoctorProfile.bio && <p>{selectedDoctorProfile.bio}</p>}
                   </div>
@@ -402,16 +402,13 @@ export default function Signup() {
               <div className="admin-signup-panel">
                 <div className="admin-signup-note">
                   <Shield className="form-label-icon" />
-                  <p>
-                    Admin signup is invite-only. Admins can review doctor professional profiles,
-                    but they do not get access to patient medical records.
-                  </p>
+                  <p>{t("signup.adminInviteTitle")} {t("signup.adminInviteBody")}</p>
                 </div>
 
                 <div className="form-field">
                   <label htmlFor="adminInviteCode" className="form-label">
                     <Shield className="form-label-icon" />
-                    Admin Invite Code *
+                    {t("signup.adminInviteCode")} *
                   </label>
                   <input
                     id="adminInviteCode"
@@ -423,7 +420,7 @@ export default function Signup() {
                       setFieldErrors(validate({ adminInviteCode: nextValue }));
                     }}
                     className={`form-input ${fieldErrors.adminInviteCode ? "form-input--error" : ""}`}
-                    placeholder="Enter the private admin invite code"
+                    placeholder={t("signup.adminInvitePlaceholder")}
                     required
                     disabled={loading}
                     autoComplete="off"
@@ -500,9 +497,9 @@ export default function Signup() {
               </Link>
             </p>
             <p>
-              Already created the admin account?{" "}
+              {t("signup.adminAlreadyCreated")}{" "}
               <Link to="/claim-admin" className="auth-link">
-                Activate admin access
+                {t("signup.activateAdminAccess")}
               </Link>
             </p>
           </div>

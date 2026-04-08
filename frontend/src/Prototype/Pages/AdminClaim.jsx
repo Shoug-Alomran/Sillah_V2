@@ -3,10 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Shield } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../contexts/AuthContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import LanguageToggle from "../../Components/LanguageToggle";
 import sillahLogo from "../../assets/sillah-logo.png";
 
 export default function AdminClaim() {
+  const { t } = useLanguage();
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,7 +23,7 @@ export default function AdminClaim() {
       setLoading(true);
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
-      if (!accessToken) throw new Error("Please log in first, then activate admin access.");
+      if (!accessToken) throw new Error(t("admin.sessionExpired"));
 
       const response = await fetch("/api/admin/claim", {
         method: "POST",
@@ -32,12 +34,12 @@ export default function AdminClaim() {
         body: JSON.stringify({ inviteCode }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Unable to activate admin access.");
+      if (!response.ok) throw new Error(result.error || t("admin.requestFailed"));
 
       await refreshProfile();
       navigate("/dashboard", { replace: true });
     } catch (claimError) {
-      setError(claimError?.message || "Unable to activate admin access.");
+      setError(claimError?.message || t("admin.requestFailed"));
     } finally {
       setLoading(false);
     }
@@ -55,10 +57,8 @@ export default function AdminClaim() {
             <div className="brand-icon-large">
               <img className="brand-logo-large" src={sillahLogo} alt="Sillah logo" />
             </div>
-            <h1 className="auth-title">Activate Admin Access</h1>
-            <p className="auth-subtitle">
-              Use this if your account already exists and needs admin privileges.
-            </p>
+            <h1 className="auth-title">{t("admin.claimTitle")}</h1>
+            <p className="auth-subtitle">{t("admin.claimSubtitle")}</p>
           </div>
 
           {error && (
@@ -73,15 +73,14 @@ export default function AdminClaim() {
               <div className="admin-signup-note">
                 <Shield className="form-label-icon" />
                 <p>
-                  You must be logged in with the account you want to promote. The invite code
-                  is checked securely on the server.
+                  {t("admin.claimBody")}
                 </p>
               </div>
 
               <div className="form-field">
                 <label htmlFor="admin-claim-code" className="form-label">
                   <Shield className="form-label-icon" />
-                  Admin Invite Code
+                  {t("signup.adminInviteCode")}
                 </label>
                 <input
                   id="admin-claim-code"
@@ -89,7 +88,7 @@ export default function AdminClaim() {
                   type="password"
                   value={inviteCode}
                   onChange={(event) => setInviteCode(event.target.value)}
-                  placeholder="Enter the private admin invite code"
+                  placeholder={t("signup.adminInvitePlaceholder")}
                   required
                   disabled={loading}
                   autoComplete="off"
@@ -98,15 +97,15 @@ export default function AdminClaim() {
             </div>
 
             <button type="submit" className="auth-submit-btn" disabled={loading}>
-              {loading ? "Activating..." : "Activate Admin Access"}
+              {loading ? t("admin.activating") : t("admin.activate")}
             </button>
           </form>
 
           <div className="auth-footer">
             <p>
-              Need to sign in first?{" "}
+              {t("admin.loginFirst")}{" "}
               <Link to="/login" className="auth-link">
-                Go to login
+                {t("admin.goToLogin")}
               </Link>
             </p>
           </div>

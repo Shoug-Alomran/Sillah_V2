@@ -52,7 +52,7 @@ export default function Layout({ children, currentPageName }) {
     if (isDoctor) {
       return [
         ...base,
-        { to: "/doctor-profile", key: "DoctorProfile", icon: BadgeCheck, label: "My Profile" },
+        { to: "/doctor-profile", key: "DoctorProfile", icon: BadgeCheck, label: t("layout.doctorProfile") },
         { to: "/patients", key: "Patients", icon: Users, label: t("layout.patients") },
         { to: "/medications", key: "Medications", icon: Pill, label: t("layout.medications") },
         { to: "/appointments", key: "Appointments", icon: Calendar, label: t("layout.appointments") },
@@ -64,8 +64,13 @@ export default function Layout({ children, currentPageName }) {
     if (isAdmin) {
       return [
         ...base,
-        { to: "/admin/operations", key: "AdminOperations", icon: Shield, label: "Admin Operations" },
-        { to: "/admin/doctor-verification", key: "AdminDoctorVerification", icon: ClipboardCheck, label: "Doctor Verification" },
+        { to: "/admin/operations", key: "AdminOperations", icon: Shield, label: t("layout.adminOperations") },
+        {
+          to: "/admin/doctor-verification",
+          key: "AdminDoctorVerification",
+          icon: ClipboardCheck,
+          label: t("layout.doctorVerification"),
+        },
       ];
     }
 
@@ -173,16 +178,15 @@ export default function Layout({ children, currentPageName }) {
               {t("common.appName")}
             </h3>
             <p className="footer-text">
-              Empowering families with hereditary health insights and preventive
-              care solutions.
+              {t("layout.footerBody")}
             </p>
             <p className="footer-note">
-              {isAdmin ? "Admin Portal" : isDoctor ? "Healthcare Provider Portal" : "Patient Portal"}
+              {isAdmin ? t("layout.adminPortal") : isDoctor ? t("layout.doctorPortal") : t("layout.patientPortal")}
             </p>
           </div>
 
           <div className="footer-col">
-            <h4 className="footer-subtitle">Quick Links</h4>
+            <h4 className="footer-subtitle">{t("layout.quickLinks")}</h4>
             <div className="footer-links">
               {navLinks.slice(0, 4).map((item) => (
                 <Link key={item.key} to={item.to} className="footer-link">
@@ -193,7 +197,7 @@ export default function Layout({ children, currentPageName }) {
           </div>
 
           <div className="footer-col">
-            <h4 className="footer-subtitle">Support</h4>
+            <h4 className="footer-subtitle">{t("layout.support")}</h4>
             <div className="footer-links">
               <Link to="/help-center" className="footer-link">{t("layout.helpCenter")}</Link>
               <Link to="/privacy-policy" className="footer-link">{t("layout.privacyPolicy")}</Link>

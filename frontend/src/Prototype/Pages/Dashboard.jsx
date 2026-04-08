@@ -206,12 +206,12 @@ export default function Dashboard() {
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
               <Shield size={24} color="#14b8a6" />
               <h2 className="quick-actions-title" style={{ margin: 0 }}>
-                Profile needs attention
+                {t("admin.profileNeedsAttention")}
               </h2>
             </div>
             <p>
               {profileError ||
-                "Your login session is active, but the app could not load the matching profile row yet. Refresh once, or log out and back in if it continues."}
+                t("admin.profileNeedsAttentionBody")}
             </p>
           </div>
         </div>
@@ -246,7 +246,7 @@ export default function Dashboard() {
             {t("dashboard.welcome", { name: profile?.full_name || "User" })}
           </h1>
           <p className="dashboard-subtitle">
-            {isAdmin ? "Hospital Admin Portal" : isDoctor ? t("dashboard.doctorSubtitle") : t("dashboard.patientSubtitle")}
+            {isAdmin ? t("dashboard.adminSubtitle") : isDoctor ? t("dashboard.doctorSubtitle") : t("dashboard.patientSubtitle")}
           </p>
           <p className="dashboard-welcome">
             {new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
@@ -270,8 +270,8 @@ export default function Dashboard() {
               <div className="stat-card">
                 <div className="stat-card-content">
                   <div className="stat-info">
-                    <p className="stat-label">Admin Scope</p>
-                    <h3 className="stat-value">No Patient PHI</h3>
+                    <p className="stat-label">{t("dashboard.adminScope")}</p>
+                    <h3 className="stat-value">{t("dashboard.noPatientPhi")}</h3>
                   </div>
                   <div className="stat-icon-wrapper from-teal-500">
                     <Shield className="stat-icon" />
@@ -282,8 +282,8 @@ export default function Dashboard() {
               <div className="stat-card">
                 <div className="stat-card-content">
                   <div className="stat-info">
-                    <p className="stat-label">Doctor Profiles</p>
-                    <h3 className="stat-value">Review</h3>
+                    <p className="stat-label">{t("dashboard.doctorProfiles")}</p>
+                    <h3 className="stat-value">{t("dashboard.review")}</h3>
                   </div>
                   <div className="stat-icon-wrapper from-purple-500">
                     <ClipboardCheck className="stat-icon" />
@@ -294,8 +294,8 @@ export default function Dashboard() {
               <div className="stat-card">
                 <div className="stat-card-content">
                   <div className="stat-info">
-                    <p className="stat-label">Access Level</p>
-                    <h3 className="stat-value">Admin</h3>
+                    <p className="stat-label">{t("dashboard.accessLevel")}</p>
+                    <h3 className="stat-value">{t("dashboard.adminRoleLabel")}</h3>
                   </div>
                   <div className="stat-icon-wrapper from-blue-500">
                     <BadgeCheck className="stat-icon" />
@@ -413,11 +413,11 @@ export default function Dashboard() {
               <>
                 <Link to="/admin/operations" className="quick-action-btn btn-purple">
                   <Shield className="quick-action-icon" />
-                  Admin Operations
+                  {t("dashboard.adminOperations")}
                 </Link>
                 <Link to="/admin/doctor-verification" className="quick-action-btn btn-teal">
                   <ClipboardCheck className="quick-action-icon" />
-                  Review Doctor Profiles
+                  {t("dashboard.doctorVerification")}
                 </Link>
                 <Link to="/awareness-hub" className="quick-action-btn btn-blue">
                   <BookOpen className="quick-action-icon" />
@@ -477,7 +477,7 @@ export default function Dashboard() {
             {isDoctor
               ? `You have access to ${stats.patientCount} patients assigned to you. Patient data is protected.`
               : isAdmin
-              ? "Admins can verify doctor credentials and manage operational trust, but cannot browse patient medical records in this portal."
+              ? t("dashboard.adminPrivacyBody")
               : "Your health information is protected and secure. Only authorized providers can access it."}
           </p>
         </div>
