@@ -84,12 +84,12 @@ export default function AdminOperations() {
 
   const tabs = useMemo(
     () => [
-      { id: "users", label: t("admin.usersAndRoles"), icon: Users },
-      { id: "clinics", label: t("admin.clinics"), icon: Building2 },
-      { id: "content", label: t("admin.awarenessContent"), icon: BookOpen },
-      { id: "audit", label: t("admin.auditLog"), icon: ClipboardList },
+      { id: "users", label: t("admin.usersAndRoles"), icon: Users, count: users.length },
+      { id: "clinics", label: t("admin.clinics"), icon: Building2, count: clinics.length },
+      { id: "content", label: t("admin.awarenessContent"), icon: BookOpen, count: content.length },
+      { id: "audit", label: t("admin.auditLog"), icon: ClipboardList, count: auditLogs.length },
     ],
-    [t]
+    [auditLogs.length, clinics.length, content.length, t, users.length]
   );
 
   const translateValue = useCallback(
@@ -314,18 +314,26 @@ export default function AdminOperations() {
           </div>
         </div>
 
-        <div className="admin-filter-tabs">
+        <div className="admin-filter-tabs" role="tablist" aria-label={t("admin.operationsTitle")}>
           {tabs.map((tab) => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
-                className={`filter-tab ${activeTab === tab.id ? "active" : ""}`}
+                role="tab"
+                aria-selected={isActive}
+                className={`admin-nav-tab ${isActive ? "active" : ""}`}
                 onClick={() => setActiveTab(tab.id)}
               >
-                <Icon size={18} />
-                {tab.label}
+                <span className="admin-nav-tab__icon" aria-hidden="true">
+                  <Icon size={18} />
+                </span>
+                <span className="admin-nav-tab__content">
+                  <span className="admin-nav-tab__label">{tab.label}</span>
+                  <span className="admin-nav-tab__meta">{tab.count}</span>
+                </span>
               </button>
             );
           })}
