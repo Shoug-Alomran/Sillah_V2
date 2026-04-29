@@ -220,3 +220,9 @@ export function createRiskAlerts(assessment) {
 
   return alerts;
 }
+
+export function getDoctorVisibleRiskAlerts(assessment) {
+  return createRiskAlerts(assessment).filter(
+    (alert) => !["add_family_members", "add_family_conditions"].includes(alert.alert_type)
+  );
+}

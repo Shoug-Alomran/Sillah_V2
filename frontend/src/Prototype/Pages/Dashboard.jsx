@@ -7,7 +7,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
 import AppLoadingScreen from "../../Components/AppLoadingScreen";
-import { analyzeRisk, createRiskAlerts, riskLevelKey } from "../../utils/riskAssessment";
+import { analyzeRisk, createRiskAlerts, getDoctorVisibleRiskAlerts } from "../../utils/riskAssessment";
 
 export default function Dashboard() {
   const { currentUser, profile, profileError, isAdmin, isDoctor, isPatient, deleteAccount } = useAuth();
@@ -19,7 +19,7 @@ export default function Dashboard() {
     healthRecordsCount: 0,
     familyMembersCount: 0,
     unreadAlertsCount: 0,
-    highRiskCount: 0
+    doctorRiskAlertsCount: 0
   });
 
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ export default function Dashboard() {
               healthRecordsCount: 0,
               familyMembersCount: 0,
               unreadAlertsCount: 0,
-              highRiskCount: 0
+              doctorRiskAlertsCount: 0
             }));
           }
         } else if (isDoctor) {
@@ -72,8 +72,14 @@ export default function Dashboard() {
             console.warn("Appointments count skipped:", apptErr.message);
           }
 
-          let highRiskCount = 0;
+          let doctorRiskAlertsCount = 0;
           if (patientIds.length > 0) {
+            const { data: storedRiskAlerts, error: storedRiskAlertsErr } = await supabase
+              .from("risk_alerts")
+              .select("id, patient_id, alert_type, priority")
+              .in("patient_id", patientIds);
+            if (storedRiskAlertsErr) console.warn("Doctor stored alerts skipped:", storedRiskAlertsErr.message);
+
             const { data: patientFamilyMembers, error: familyRiskErr } = await supabase
               .from("family_members")
               .select("id, user_id, relationship")
@@ -104,11 +110,27 @@ export default function Dashboard() {
               acc[rowPatientId].push(row);
               return acc;
             }, {});
+            const storedAlertsByPatientId = (storedRiskAlerts || []).reduce((acc, alert) => {
+              if (!alert?.patient_id) return acc;
+              if (!acc[alert.patient_id]) acc[alert.patient_id] = [];
+              acc[alert.patient_id].push(alert);
+              return acc;
+            }, {});
 
-            highRiskCount = patientIds.filter((patientId) => {
+            doctorRiskAlertsCount = patientIds.reduce((count, patientId) => {
               const summary = analyzeRisk(membersByPatientId[patientId] || [], historyByPatientId[patientId] || []);
-              return riskLevelKey(summary.severity) === "high";
-            }).length;
+              const patientStoredAlerts = (storedAlertsByPatientId[patientId] || []).filter(
+                (alert) => !["add_family_members", "add_family_conditions"].includes(alert.alert_type)
+              );
+              const existingAlertTypes = new Set(
+                patientStoredAlerts.map((alert) => alert.alert_type).filter(Boolean)
+              );
+              const computedAlerts = getDoctorVisibleRiskAlerts(summary).filter(
+                (alert) => !existingAlertTypes.has(alert.alert_type)
+              );
+
+              return count + patientStoredAlerts.length + computedAlerts.length;
+            }, 0);
           }
 
           if (!cancelled) {
@@ -116,7 +138,7 @@ export default function Dashboard() {
               ...s,
               patientCount: patientCount || 0,
               appointmentCount: appointmentCount || 0,
-              highRiskCount
+              doctorRiskAlertsCount
             }));
           }
         } else if (isPatient) {
@@ -333,7 +355,7 @@ export default function Dashboard() {
                 <div className="stat-card-content">
                   <div className="stat-info">
                     <p className="stat-label">Risk Alerts</p>
-                    <h3 className="stat-value">{stats.highRiskCount}</h3>
+                    <h3 className="stat-value">{stats.doctorRiskAlertsCount}</h3>
                   </div>
                   <div className="stat-icon-wrapper from-green-500">
                     <AlertTriangle className="stat-icon" />
