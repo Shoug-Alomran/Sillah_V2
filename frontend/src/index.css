@@ -1545,8 +1545,25 @@ body {
   font-weight: 600;
 }
 
-.phase-result {
+.phase-query-results {
+  display: grid;
+  gap: 1rem;
   margin-top: 1rem;
+}
+
+.phase-result-title {
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin: 0 0 0.55rem;
+}
+
+.phase-query-table-wrap {
+  margin-top: 0;
+}
+
+.phase-result {
+  margin-top: 0;
   background: #0f172a;
   color: #d1fae5;
   padding: 1.25rem;

@@ -22,6 +22,41 @@ function normalizeRows(payload) {
   return [];
 }
 
+function formatCellValue(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function QueryOutputTable({ rows }) {
+  if (!rows.length) return <EmptyTable message="No rows returned by this query." />;
+
+  const columns = Object.keys(rows[0]);
+
+  return (
+    <div className="phase-table-wrap phase-query-table-wrap">
+      <table className="phase-table">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`${index}-${columns.map((column) => row[column]).join("-")}`}>
+              {columns.map((column) => (
+                <td key={column}>{formatCellValue(row[column])}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function EmptyTable({ message }) {
   return (
     <div className="phase-empty">
@@ -489,9 +524,18 @@ function Queries() {
 
       <ErrorMessage error={err} />
       {result && (
-        <pre className="phase-result">
-          {JSON.stringify(result, null, 2)}
-        </pre>
+        <div className="phase-query-results">
+          <div>
+            <h3 className="phase-result-title">Visual output</h3>
+            <QueryOutputTable rows={normalizeRows(result)} />
+          </div>
+          <div>
+            <h3 className="phase-result-title">JSON output</h3>
+            <pre className="phase-result">
+              {JSON.stringify(normalizeRows(result), null, 2)}
+            </pre>
+          </div>
+        </div>
       )}
     </section>
   );
