@@ -1,9 +1,17 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
 import { api } from "../api";
 
 const AuthContext = createContext(null);
 const AUTH_TIMEOUT_MS = 30000;
+let supabasePromise;
+
+function getSupabase() {
+  if (!supabasePromise) {
+    supabasePromise = import("../lib/supabaseClient").then((module) => module.supabase);
+  }
+
+  return supabasePromise;
+}
 
 function withTimeout(promise, label, timeoutMs = AUTH_TIMEOUT_MS) {
   let timeoutId;
@@ -36,6 +44,7 @@ export function AuthProvider({ children }) {
 
     try {
       setProfileError("");
+      const supabase = await getSupabase();
       const { data, error } = await withTimeout(
         supabase
           .from("profiles")
@@ -67,6 +76,7 @@ export function AuthProvider({ children }) {
   async function refreshSession() {
     try {
       setAuthError("");
+      const supabase = await getSupabase();
       const { data } = await withTimeout(supabase.auth.getSession(), "Session restore");
       const user = data?.session?.user ?? null;
 
@@ -82,6 +92,7 @@ export function AuthProvider({ children }) {
   async function refreshProfile() {
     try {
       setAuthError("");
+      const supabase = await getSupabase();
       const { data } = await withTimeout(supabase.auth.getSession(), "Session refresh");
       const user = data?.session?.user ?? null;
       setCurrentUser(user);
@@ -96,6 +107,7 @@ export function AuthProvider({ children }) {
   async function login(email, password) {
     setAuthError("");
     setProfileError("");
+    const supabase = await getSupabase();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data.user;
@@ -114,6 +126,7 @@ export function AuthProvider({ children }) {
     setAuthError("");
     setProfileError("");
     const selectedDoctor = selected_doctor_id ?? selectedDoctorId ?? null;
+    const supabase = await getSupabase();
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -175,6 +188,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
+    const supabase = await getSupabase();
     const { error } = await supabase.auth.signOut({ scope: "global" });
     if (error) throw error;
     setCurrentUser(null);
@@ -184,6 +198,7 @@ export function AuthProvider({ children }) {
   }
 
   async function deleteAccount(confirmation) {
+    const supabase = await getSupabase();
     const { data } = await supabase.auth.getSession();
     const accessToken = data?.session?.access_token;
     if (!accessToken) throw new Error("Your session has expired. Please log in again.");
@@ -214,28 +229,37 @@ export function AuthProvider({ children }) {
       }
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const user = session?.user ?? null;
-      setCurrentUser(user);
-      setAuthError("");
+    let subscription;
 
-      if (user) {
-        try {
-          await loadProfile(user.id);
-        } catch (error) {
-          console.warn("Auth profile sync failed:", error.message);
+    (async () => {
+      const supabase = await getSupabase();
+      if (!mounted) return;
+
+      const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const user = session?.user ?? null;
+        setCurrentUser(user);
+        setAuthError("");
+
+        if (user) {
+          try {
+            await loadProfile(user.id);
+          } catch (error) {
+            console.warn("Auth profile sync failed:", error.message);
+            setProfile(null);
+            setProfileError(error.message || "Unable to sync your profile.");
+          }
+        } else {
           setProfile(null);
-          setProfileError(error.message || "Unable to sync your profile.");
+          setProfileError("");
         }
-      } else {
-        setProfile(null);
-        setProfileError("");
-      }
-    });
+      });
+
+      subscription = sub?.subscription;
+    })();
 
     return () => {
       mounted = false;
-      sub?.subscription?.unsubscribe?.();
+      subscription?.unsubscribe?.();
     };
   }, []);
 

@@ -6,7 +6,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import LanguageToggle from "../../Components/LanguageToggle";
 import OnboardingPrompt from "../../Components/OnboardingPrompt";
 import Tooltip from "../../Components/Tooltip";
-import sillahLogo from "../../assets/sillah-logo.png";
+import sillahLogo from "../../assets/sillah-logo-160.webp";
 
 export default function Login() {
   const [email, setEmail] = useState("");

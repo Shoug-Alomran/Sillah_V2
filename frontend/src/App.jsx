@@ -1,15 +1,19 @@
 import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import Layout from "./Components/Layout.jsx";
 import AppLoadingScreen from "./Components/AppLoadingScreen.jsx";
 import { useAuth } from "./contexts/AuthContext";
 
-import Login from "./Prototype/Pages/Login.jsx";
-import Signup from "./Prototype/Pages/Signup.jsx";
-import AdminClaim from "./Prototype/Pages/AdminClaim.jsx";
+const Analytics = lazy(() =>
+  import("@vercel/analytics/react").then((module) => ({ default: module.Analytics }))
+);
+const SpeedInsights = lazy(() =>
+  import("@vercel/speed-insights/react").then((module) => ({ default: module.SpeedInsights }))
+);
+const Login = lazy(() => import("./Prototype/Pages/Login.jsx"));
+const Signup = lazy(() => import("./Prototype/Pages/Signup.jsx"));
+const AdminClaim = lazy(() => import("./Prototype/Pages/AdminClaim.jsx"));
 const Dashboard = lazy(() => import("./Prototype/Pages/Dashboard.jsx"));
 const MyHealth = lazy(() => import("./Prototype/Pages/MyHealth.jsx"));
 const Alerts = lazy(() => import("./Prototype/Pages/Alerts.jsx"));
@@ -255,8 +259,10 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
-      <Analytics />
-      <SpeedInsights />
+      <Suspense fallback={null}>
+        <Analytics />
+        <SpeedInsights />
+      </Suspense>
     </>
   );
 }

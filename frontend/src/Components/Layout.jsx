@@ -21,7 +21,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import LanguageToggle from "./LanguageToggle";
 import Tooltip from "./Tooltip";
-import sillahLogo from "../assets/sillah-logo.png";
+import sillahLogo from "../assets/sillah-logo-160.webp";
 
 export default function Layout({ children, currentPageName }) {
   const { logout, isDoctor, isPatient, isAdmin } = useAuth();
