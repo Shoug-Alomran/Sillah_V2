@@ -135,13 +135,20 @@ app.post("/api/family-members", async (req, res) => {
 
 app.delete("/api/family-members/:id", async (req, res) => {
   const member_id = Number(req.params.id);
+  const conn = await pool.getConnection();
 
   try {
-    const [result] = await pool.query("DELETE FROM FamilyMember WHERE member_id = ?", [member_id]);
+    await conn.beginTransaction();
+    await conn.query("DELETE FROM RiskAlert WHERE member_id = ?", [member_id]);
+    const [result] = await conn.query("DELETE FROM FamilyMember WHERE member_id = ?", [member_id]);
+    await conn.commit();
     res.json({ affectedRows: result.affectedRows });
   } catch (err) {
+    await conn.rollback();
     console.error("DELETE FAMILY ERROR:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
   }
 });
 

@@ -6,12 +6,18 @@ export default async function handler(req, res) {
 
   const memberId = Number(req.query.id);
   const pool = getPool();
+  const conn = await pool.getConnection();
 
   try {
-    const [result] = await pool.query("DELETE FROM FamilyMember WHERE member_id = ?", [memberId]);
+    await conn.beginTransaction();
+    await conn.query("DELETE FROM RiskAlert WHERE member_id = ?", [memberId]);
+    const [result] = await conn.query("DELETE FROM FamilyMember WHERE member_id = ?", [memberId]);
+    await conn.commit();
     return res.status(200).json({ affectedRows: result.affectedRows });
   } catch (err) {
+    await conn.rollback();
     return res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
   }
 }
-
